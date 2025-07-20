@@ -1,0 +1,13 @@
+data_ingestion:
+  raw_data_path: artifacts/data_ingestion/raw_data.csv
+  train_data_path: artifacts/data_ingestion/train.csv
+  test_data_path: artifacts/data_ingestion/test.csv
+  test_size: 0.2
+
+database:
+  host: localhost
+  port: 5432
+  database: postgres
+  username: postgres
+  password: postgres
+  table_name: train_turbofan_data
