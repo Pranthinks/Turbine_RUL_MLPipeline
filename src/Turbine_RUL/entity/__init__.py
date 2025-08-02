@@ -17,3 +17,12 @@ class FeatureEngineeringConfig:
     engineered_features_path: str
     long_term_pipeline_path: str
     short_term_pipeline_path: str
+
+@dataclass
+class ModelTrainingConfig:
+    engineered_features_path: str
+    model_path: str
+    selected_features_path: str
+    feature_importance_path: str
+    cv_results_path: str
+    metrics_path: str

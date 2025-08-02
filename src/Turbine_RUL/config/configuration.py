@@ -1,5 +1,5 @@
 import yaml
-from src.Turbine_RUL.entity import DataIngestionConfig, DataTransformationConfig, FeatureEngineeringConfig
+from src.Turbine_RUL.entity import DataIngestionConfig, DataTransformationConfig, FeatureEngineeringConfig, ModelTrainingConfig
 
 class ConfigurationManager:
     def __init__(self, config_path="config/config.yaml"):
@@ -28,3 +28,14 @@ class ConfigurationManager:
             long_term_pipeline_path=config['long_term_pipeline_path'],
             short_term_pipeline_path=config['short_term_pipeline_path']
     )
+
+    def get_model_training_config(self):
+        config = self.config['model_training']
+        return ModelTrainingConfig(
+            engineered_features_path=config['engineered_features_path'],
+            model_path=config['model_path'],
+            selected_features_path=config['selected_features_path'],
+            feature_importance_path=config['feature_importance_path'],
+            cv_results_path=config['cv_results_path'],
+            metrics_path=config['metrics_path']
+        )

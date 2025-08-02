@@ -18,6 +18,15 @@ feature_engineering:
   long_term_pipeline_path: artifacts/feature_engineering/long_term_pipeline.pkl
   short_term_pipeline_path: artifacts/feature_engineering/short_term_pipeline.pkl
 
+model_training:
+  root_dir: artifacts/model_training
+  engineered_features_path: artifacts/feature_engineering/train_features.csv
+  model_path: artifacts/model_training/ngboost_model.pkl
+  selected_features_path: artifacts/model_training/selected_features.pkl
+  feature_importance_path: artifacts/model_training/feature_importance.csv
+  cv_results_path: artifacts/model_training/cv_results.csv
+  metrics_path: artifacts/model_training/metrics.csv
+
 database:
   host: localhost
   port: 5432

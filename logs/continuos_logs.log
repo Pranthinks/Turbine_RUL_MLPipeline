@@ -4,3 +4,7 @@
 [2025-08-02 13:12:37,638: INFO: main: Stage Data Transformation stage Completed]
 [2025-08-02 13:12:37,638: INFO: main: stage Feature Engineering stage initiated]
 [2025-08-02 13:27:44,024: INFO: main: Stage Feature Engineering stage Completed]
+[2025-08-02 15:48:09,463: INFO: model_train: >>>>>> stage Model Training Stage started <<<<<<]
+[2025-08-02 15:50:40,988: INFO: model_train: >>>>>> stage Model Training Stage completed <<<<<<
+
+x==========x]
