@@ -37,8 +37,8 @@ tsfresh_calc = {
     'linear_trend': [{'attr': 'intercept'}, {'attr': 'slope'}, {'attr': 'stderr'}],
     'augmented_dickey_fuller': [{'attr': 'teststat'}, {'attr': 'pvalue'}, {'attr': 'usedlag'}],
     'fft_coefficient': [{'coeff': i, 'attr': 'abs'} for i in range(11)],
-    'fft_aggregated': [{'aggtype': 'centroid'}, {'aggtype': 'variance',
-                      'aggtype': 'skew'}, {'aggtype': 'kurtosis'}],
+    'fft_aggregated': [{'aggtype': 'centroid'}, {'aggtype': 'variance'},
+                      {'aggtype': 'skew'}, {'aggtype': 'kurtosis'}],
 }
 
 class RollTimeSeries(BaseEstimator, TransformerMixin):
@@ -47,7 +47,7 @@ class RollTimeSeries(BaseEstimator, TransformerMixin):
         self.max_timeshift = max_timeshift
         self.rolling_direction = rolling_direction
 
-    def fit(self, X, y=None):  # ← Fixed: Added y=None
+    def fit(self, X, y=None):
         return self
 
     def transform(self, X):
@@ -67,54 +67,32 @@ class TSFreshFeaturesExtractor(BaseEstimator, TransformerMixin):
         self.calc = calc
 
     def _clean_features(self, X):
-        print(f"Before cleaning - Index type: {type(X.index)}, names: {X.index.names}")
-        
         old_shape = X.shape
-        X_t = X.T.drop_duplicates().T  # ← This might be destroying the MultiIndex!
+        X_t = X.T.drop_duplicates().T
         print(f'Dropped {old_shape[1] - X_t.shape[1]} duplicate features')
-        print(f"After drop_duplicates - Index type: {type(X_t.index)}, names: {X_t.index.names}")
 
         old_shape = X_t.shape
-        X_t = X_t.dropna(axis=1)  # ← This might also be destroying the MultiIndex!
+        X_t = X_t.dropna(axis=1)
         print(f'Dropped {old_shape[1] - X_t.shape[1]} features with NA values')
-        print(f"After dropna - Index type: {type(X_t.index)}, names: {X_t.index.names}")
         
         return X_t
 
-    def fit(self, X, y=None):  # ← Fixed: Added y=None
+    def fit(self, X, y=None):
         return self
 
     def transform(self, X):
         _start = datetime.now()
         print('Start Extracting Features')
         
-        # Debug: Check input structure
-        print(f"TSFresh input shape: {X.shape}")
-        print(f"TSFresh input index: {type(X.index)}")
-        print(f"TSFresh input columns: {X.columns.tolist()}")
-        
         X_t = extract_features(
-            X[['id', 'time_cycles'] +  # ← Use 'id' like Google Colab
+            X[['id', 'time_cycles'] +
               X.columns[X.columns.str.startswith('sensor')].tolist()],
-            column_id='id',  # ← Use 'id' like Google Colab
+            column_id='id',
             column_sort='time_cycles',
             default_fc_parameters=self.calc)
             
         print(f'Done Extracting Features in {datetime.now() - _start}')
-        
-        # Debug: Check TSFresh output structure  
-        print(f"TSFresh output shape: {X_t.shape}")
-        print(f"TSFresh output index type: {type(X_t.index)}")
-        print(f"TSFresh output index names: {X_t.index.names}")
-        print(f"TSFresh output sample index: {X_t.index[:5]}")
-        
         X_t = self._clean_features(X_t)
-        
-        # Debug: Check after cleaning
-        print(f"After cleaning shape: {X_t.shape}")
-        print(f"After cleaning index type: {type(X_t.index)}")
-        print(f"After cleaning index names: {X_t.index.names}")
-        
         return X_t
 
 class CustomPCA(BaseEstimator, TransformerMixin):
@@ -151,52 +129,29 @@ class TSFreshFeaturesSelector(BaseEstimator, TransformerMixin):
         self.upper_threshold = upper_threshold
 
     def fit(self, X, y=None):
-        # Check index structure first
-        print(f"TSFreshFeaturesSelector - Index type: {type(X.index)}")
-        print(f"TSFreshFeaturesSelector - Index names: {X.index.names}")
-        print(f"TSFreshFeaturesSelector - Sample index: {X.index[:5].tolist()}")
+        # Simplified approach like Google Colab
+        index_df = X.index.to_frame().reset_index(drop=True)
         
-        # Check if we have proper MultiIndex
-        if hasattr(X.index, 'names') and len(X.index.names) == 2 and X.index.names != [None, None]:
-            # We have a proper MultiIndex
-            index_df = X.index.to_frame().reset_index(drop=True)
-            index_df.columns = ['unit_id', 'time_cycles']
-        elif hasattr(X.index, 'levels'):
-            # MultiIndex but unnamed
-            index_df = X.index.to_frame().reset_index(drop=True)
+        # Handle different index structures
+        if len(index_df.columns) == 2:
             index_df.columns = ['unit_id', 'time_cycles']
         else:
-            # Single index - this is the problem! 
-            print("ERROR: Expected MultiIndex but got single index. This breaks RUL calculation.")
-            print("Falling back to using all features...")
+            print("Warning: Unexpected index structure")
+            # Use all features as fallback
             self.selected_ftr = X.columns
             return self
-        
-        print(f"Index DataFrame shape: {index_df.shape}")
-        print(f"Unique unit_ids: {index_df['unit_id'].nunique()}")
-        print(f"Time cycles per unit (sample): {index_df.groupby('unit_id')['time_cycles'].count().head()}")
         
         # Calculate RUL
         rul = calculate_RUL(index_df, upper_threshold=self.upper_threshold)
         
-        # Debug RUL
-        print(f"RUL unique values: {len(pd.Series(rul).unique())}")
-        print(f"RUL range: {pd.Series(rul).min()} to {pd.Series(rul).max()}")
-        
-        # Check if RUL has enough variation
-        if len(pd.Series(rul).unique()) <= 1:
-            print("WARNING: RUL has no variation. Using all features.")
-            self.selected_ftr = X.columns
-            return self
-        
+        # Feature selection
         try:
             X_t = select_features(X, rul, fdr_level=self.fdr_level)
             self.selected_ftr = X_t.columns
             print(f'Selected {len(self.selected_ftr)} out of {X.shape[1]} features: '
                   f'{self.selected_ftr.to_list()}')
         except Exception as e:
-            print(f"Feature selection failed: {e}")
-            print("Using all features as fallback.")
+            print(f"Feature selection failed: {e}. Using all features.")
             self.selected_ftr = X.columns
             
         return self
@@ -212,7 +167,6 @@ class FeatureEngineering:
     def create_long_term_pipeline(self):
         """Create pipeline for long-term features (19 time steps)"""
         return Pipeline([
-            # Basic preprocessing already done in previous stage
             ('roll-time-series', RollTimeSeries(min_timeshift=19, max_timeshift=19, rolling_direction=1)),
             ('extract-tsfresh-features', TSFreshFeaturesExtractor(calc=tsfresh_calc)),
             ('PCA', CustomPCA(n_components=20)),
@@ -222,7 +176,6 @@ class FeatureEngineering:
     def create_short_term_pipeline(self):
         """Create pipeline for short-term features (4 time steps)"""
         return Pipeline([
-            # Basic preprocessing already done in previous stage
             ('roll-time-series', RollTimeSeries(min_timeshift=4, max_timeshift=4, rolling_direction=1)),
             ('extract-tsfresh-features', TSFreshFeaturesExtractor(calc={'mean': None})),
             ('features-selection', TSFreshFeaturesSelector(fdr_level=0.0002)),
@@ -255,19 +208,9 @@ class FeatureEngineering:
             left_index=True
         )
         
-        # Debug: Check merged result structure
-        print(f"After merge - Index type: {type(train_ftrs.index)}")
-        print(f"After merge - Index names: {train_ftrs.index.names}")
-        print(f"After merge - Shape: {train_ftrs.shape}")
-        
-        # Handle index naming based on structure
+        # Set proper index names if it's a MultiIndex
         if hasattr(train_ftrs.index, 'names') and len(train_ftrs.index.names) == 2:
-            # We have a MultiIndex
             train_ftrs.index = train_ftrs.index.set_names(['unit_id', 'time_cycles'])
-        else:
-            # We have a single index - convert to MultiIndex if needed
-            print("Warning: Merged result has single index instead of MultiIndex")
-            # For now, just keep the single index
         
         print(f'Final training features shape: {train_ftrs.shape}')
         

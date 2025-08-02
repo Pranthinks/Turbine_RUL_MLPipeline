@@ -15,7 +15,7 @@ class DataTransformation:
         preprocess_pipe = Pipeline([
             ('drop-columns', ColumnDropper(columns_to_drop=['rul', 'data_type', 'dataset', 'created_at'])),
             ('drop-low-variance', LowVarianceFeaturesRemover(threshold=0)),
-            ('scale-per-engine', ScalePerEngine(n_first_cycles=15, sensors_columns=SENSOR_COLUMNS))
+            ('scale-per-engine', ScalePerEngine(n_first_cycles=10, sensors_columns=SENSOR_COLUMNS))  # Changed from 15 to 10
         ])
         return preprocess_pipe
     
