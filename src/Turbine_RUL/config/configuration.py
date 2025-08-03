@@ -1,5 +1,5 @@
 import yaml
-from src.Turbine_RUL.entity import DataIngestionConfig, DataTransformationConfig, FeatureEngineeringConfig, ModelTrainingConfig
+from src.Turbine_RUL.entity import DataIngestionConfig, DataTransformationConfig, FeatureEngineeringConfig, ModelTrainingConfig, ModelPredictionConfig
 
 class ConfigurationManager:
     def __init__(self, config_path="config/config.yaml"):
@@ -38,4 +38,19 @@ class ConfigurationManager:
             feature_importance_path=config['feature_importance_path'],
             cv_results_path=config['cv_results_path'],
             metrics_path=config['metrics_path']
+        )
+    
+    def get_model_prediction_config(self):
+        config = self.config['model_prediction']
+        return ModelPredictionConfig(
+            test_data_path=config['test_data_path'],
+            preprocessor_path=config['preprocessor_path'],
+            long_term_pipeline_path=config['long_term_pipeline_path'],
+            short_term_pipeline_path=config['short_term_pipeline_path'],
+            model_path=config['model_path'],
+            selected_features_path=config['selected_features_path'],
+            predictions_path=config['predictions_path'],
+            evaluation_rul_path=config['evaluation_rul_path'],
+            evaluation_metrics_path=config['evaluation_metrics_path'],
+            evaluation_plots_path=config['evaluation_plots_path']
         )

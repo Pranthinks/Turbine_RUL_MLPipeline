@@ -1,0 +1,10 @@
+[2025-08-02 16:47:42,928: INFO: model_train: >>>>>> stage Model Training Stage started <<<<<<]
+[2025-08-02 16:47:42,928: ERROR: model_train: [Errno 2] No such file or directory: 'config/config.yaml']
+Traceback (most recent call last):
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\src\Turbine_RUL\pipeline\model_train.py", line 30, in <module>
+    model_path, metrics = obj.main()
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\src\Turbine_RUL\pipeline\model_train.py", line 19, in main
+    config = ConfigurationManager()
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\src\Turbine_RUL\config\configuration.py", line 6, in __init__
+    with open(config_path) as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'config/config.yaml'

@@ -2,6 +2,7 @@ from src.Turbine_RUL.config.configuration import ConfigurationManager
 from src.Turbine_RUL.components.model_training import ModelTrainer
 from src.Turbine_RUL.logging import logger
 
+
 STAGE_NAME = "Model Training Stage"
 
 class ModelTrainingPipeline:

@@ -3,11 +3,16 @@ import numpy as np
 import pandas as pd
 import pickle
 import warnings
+import mlflow
+import mlflow.sklearn
 from datetime import datetime
-from sklearn.model_selection import GroupKFold, cross_validate
+from sklearn.model_selection import GroupKFold, cross_validate, ParameterGrid
 from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor
 from ngboost import NGBRegressor
 from ngboost.distns import Poisson
+from dotenv import load_dotenv
+load_dotenv()
 
 from src.Turbine_RUL.config.configuration import ConfigurationManager
 from src.Turbine_RUL.utils.common import calculate_RUL
@@ -17,6 +22,14 @@ warnings.filterwarnings("ignore")
 
 # Constants
 RUL_THRESHOLD = 135
+
+# Setup MLflow tracking
+if os.getenv("MLFLOW_TRACKING_URI"):
+    os.environ["MLFLOW_TRACKING_URI"] = os.getenv("MLFLOW_TRACKING_URI")
+if os.getenv("MLFLOW_TRACKING_USERNAME"):
+    os.environ["MLFLOW_TRACKING_USERNAME"] = os.getenv("MLFLOW_TRACKING_USERNAME")
+if os.getenv("MLFLOW_TRACKING_PASSWORD"):
+    os.environ["MLFLOW_TRACKING_PASSWORD"] = os.getenv("MLFLOW_TRACKING_PASSWORD")
 
 class CustomGroupKFold(GroupKFold):
     """CV Splitter which drops validation records with RUL values outside of test set ranges"""
@@ -30,6 +43,9 @@ class ModelTrainer:
     def __init__(self):
         config_manager = ConfigurationManager()
         self.config = config_manager.get_model_training_config()
+        
+        # Setup MLflow
+        mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI"))
         
     def prepare_training_data(self, train_features_path):
         """Prepare data for training by loading features and calculating RUL"""
@@ -52,32 +68,8 @@ class ModelTrainer:
         
         return X_train, y_train, train_units_df
     
-    def create_ngboost_model(self):
-        """Create NGBoost model with best parameters from experiments"""
-        # Decision tree base learner with best parameters
-        ngb_base = DecisionTreeRegressor(
-            criterion='friedman_mse',
-            max_depth=5,
-            max_features=0.8,
-            min_samples_leaf=50
-        )
-        
-        # NGBoost regressor with Poisson distribution
-        ngb = NGBRegressor(
-            Dist=Poisson,
-            Base=ngb_base,
-            learning_rate=0.01,
-            col_sample=0.8,
-            minibatch_frac=0.5,
-            n_estimators=400,
-            verbose=False
-        )
-        
-        return ngb
-    
     def evaluate_model(self, model, X, y, groups, cv, n_jobs=None):
         """Evaluate a model with Cross-Validation"""
-        print("\nPerforming cross-validation...")
         cv_results = cross_validate(
             model, X=X, y=y, groups=groups,
             scoring=['neg_root_mean_squared_error', 'neg_mean_absolute_error'],
@@ -108,8 +100,8 @@ class ModelTrainer:
         return feature_importance
     
     def initiate_model_training(self):
-        """Main model training process"""
-        print("Starting Model Training...")
+        """Main model training process with hyperparameter tuning"""
+        print("Starting Model Training with Hyperparameter Tuning...")
         start_time = datetime.now()
         
         # 1. Load and prepare data
@@ -126,56 +118,235 @@ class ModelTrainer:
         print(f"Training data shape: {X_train_valid.shape}")
         print(f"Target values range: [{y_train_valid.min()}, {y_train_valid.max()}]")
         
-        # 2. Create model
-        ngb_model = self.create_ngboost_model()
+        # 2. Define parameter grids (4 combinations each)
+        ngboost_params = [
+            {'learning_rate': 0.01, 'n_estimators': 200},
+            {'learning_rate': 0.02, 'n_estimators': 200},
+            {'learning_rate': 0.02, 'n_estimators': 300},
+            {'learning_rate': 0.01, 'n_estimators': 400}
+        ]
         
-        # 3. Cross-validation evaluation
+        rf_params = [
+            {'n_estimators': 100, 'max_depth': 10},
+            {'n_estimators': 100, 'max_depth': None},
+            {'n_estimators': 200, 'max_depth': 10},
+            {'n_estimators': 200, 'max_depth': None}
+        ]
+        
+        # 3. Set MLflow experiment
+        mlflow.set_experiment("Turbine_RUL_Hyperparameter_Tuning")
+        
         cv_splitter = CustomGroupKFold(n_splits=4)
-        cv_results = self.evaluate_model(
-            ngb_model,
-            X=X_train_valid.values,
-            y=y_train_valid,
-            groups=train_units_valid['unit_id'],
-            cv=cv_splitter,
-            n_jobs=4
-        )
+        best_model = None
+        best_score = float('inf')
+        best_params = None
+        best_model_name = None
+        best_cv_results = None
         
-        # 4. Train final model on all data
-        print("\nTraining final model on all data...")
-        selected_features = X_train.columns.tolist()
-        ngb_model.fit(X_train_valid[selected_features], y_train_valid)
+        # 4. NGBoost hyperparameter tuning
+        print(f"\n{'='*50}")
+        print("TUNING NGBOOST PARAMETERS")
+        print(f"{'='*50}")
         
-        # 5. Extract feature importance
-        feature_importance = self.extract_feature_importance(ngb_model, selected_features)
+        for i, params in enumerate(ngboost_params, 1):
+            print(f"\nNGBoost {i}/4: {params}")
+            
+            with mlflow.start_run():
+                # Create model
+                ngb_base = DecisionTreeRegressor(
+                    criterion='friedman_mse', max_depth=5, 
+                    max_features=0.8, min_samples_leaf=50
+                )
+                model = NGBRegressor(
+                    Dist=Poisson, Base=ngb_base,
+                    learning_rate=params['learning_rate'],
+                    n_estimators=params['n_estimators'],
+                    col_sample=0.8, minibatch_frac=0.5, verbose=False
+                )
+                
+                # Set tags and log parameters
+                mlflow.set_tag("model_type", "ngboost")
+                mlflow.log_params(params)
+                mlflow.log_param("max_depth", 5)
+                mlflow.log_param("max_features", 0.8)
+                mlflow.log_param("col_sample", 0.8)
+                
+                # Cross-validation
+                cv_results = self.evaluate_model(
+                    model, X_train_valid.values, y_train_valid,
+                    train_units_valid['unit_id'], cv_splitter, n_jobs=2
+                )
+                
+                # Train model and get feature importance
+                model.fit(X_train_valid, y_train_valid)
+                feature_importance = self.extract_feature_importance(model, X_train_valid.columns)
+                
+                # Calculate and log metrics
+                test_rmse = np.abs(cv_results['test_neg_root_mean_squared_error'].mean())
+                test_mae = np.abs(cv_results['test_neg_mean_absolute_error'].mean())
+                train_rmse = np.abs(cv_results['train_neg_root_mean_squared_error'].mean())
+                
+                mlflow.log_metric("test_rmse", test_rmse)
+                mlflow.log_metric("test_mae", test_mae)
+                mlflow.log_metric("train_rmse", train_rmse)
+                
+                # Log feature importance
+                importance_path = "temp_feature_importance.csv"
+                feature_importance.to_csv(importance_path, index=False)
+                mlflow.log_artifact(importance_path)
+                os.remove(importance_path)
+                
+                # Check if best
+                if test_rmse < best_score:
+                    best_score = test_rmse
+                    best_model = model
+                    best_params = params.copy()
+                    best_params.update({'max_depth': 5, 'max_features': 0.8, 'col_sample': 0.8})
+                    best_model_name = "ngboost"
+                    best_cv_results = cv_results
+        
+        # 5. Random Forest hyperparameter tuning
+        print(f"\n{'='*50}")
+        print("TUNING RANDOM FOREST PARAMETERS")
+        print(f"{'='*50}")
+        
+        for i, params in enumerate(rf_params, 1):
+            print(f"\nRandomForest {i}/4: {params}")
+            
+            with mlflow.start_run():
+                # Create model
+                model = RandomForestRegressor(
+                    n_estimators=params['n_estimators'],
+                    max_depth=params['max_depth'],
+                    min_samples_split=5, min_samples_leaf=2,
+                    max_features=0.8, random_state=42, n_jobs=-1
+                )
+                
+                # Set tags and log parameters
+                mlflow.set_tag("model_type", "random_forest")
+                mlflow.log_params(params)
+                mlflow.log_param("min_samples_split", 5)
+                mlflow.log_param("min_samples_leaf", 2)
+                mlflow.log_param("max_features", 0.8)
+                
+                # Cross-validation
+                cv_results = self.evaluate_model(
+                    model, X_train_valid.values, y_train_valid,
+                    train_units_valid['unit_id'], cv_splitter, n_jobs=2
+                )
+                
+                # Train model and get feature importance
+                model.fit(X_train_valid, y_train_valid)
+                feature_importance = self.extract_feature_importance(model, X_train_valid.columns)
+                
+                # Calculate and log metrics
+                test_rmse = np.abs(cv_results['test_neg_root_mean_squared_error'].mean())
+                test_mae = np.abs(cv_results['test_neg_mean_absolute_error'].mean())
+                train_rmse = np.abs(cv_results['train_neg_root_mean_squared_error'].mean())
+                
+                mlflow.log_metric("test_rmse", test_rmse)
+                mlflow.log_metric("test_mae", test_mae)
+                mlflow.log_metric("train_rmse", train_rmse)
+                
+                # Log feature importance
+                importance_path = "temp_feature_importance.csv"
+                feature_importance.to_csv(importance_path, index=False)
+                mlflow.log_artifact(importance_path)
+                os.remove(importance_path)
+                
+                # Log sklearn model
+                # --- MODIFIED PART ---
+        # Save the model locally first
+                local_model_path = "rf_model.pkl"
+                with open(local_model_path, 'wb') as f:
+                    pickle.dump(model, f)
+        
+        # Log the file as an artifact
+                mlflow.log_artifact(local_model_path, "model")
+        
+        # Clean up the local file
+                os.remove(local_model_path)
+        # --- END MODIFIED PART ---
+                
+                # Check if best
+                if test_rmse < best_score:
+                    best_score = test_rmse
+                    best_model = model
+                    best_params = params.copy()
+                    best_params.update({'min_samples_split': 5, 'min_samples_leaf': 2, 'max_features': 0.8})
+                    best_model_name = "random_forest"
+                    best_cv_results = cv_results
+        
+        # 6. Final best model logging
+        print(f"\n{'='*60}")
+        print(f"BEST MODEL: {best_model_name.upper()} (RMSE: {best_score:.3f})")
+        print(f"BEST PARAMETERS: {best_params}")
+        print(f"{'='*60}")
+        
+        # Log best model to separate experiment
+        mlflow.set_experiment("Turbine_RUL_Best_Model")
+        with mlflow.start_run() as run:
+            mlflow.set_tag("model_type", best_model_name)
+            mlflow.set_tag("experiment_type", "best_model")
+            
+            # Log best parameters
+            mlflow.log_params(best_params)
+            
+            # Log best metrics
+            mlflow.log_metric("best_test_rmse", best_score)
+            mlflow.log_metric("best_test_mae", np.abs(best_cv_results['test_neg_mean_absolute_error'].mean()))
+            
+            # Log best model
+            if best_model_name == "ngboost":
+                model_path = "best_model.pkl"
+                with open(model_path, 'wb') as f:
+                    pickle.dump(best_model, f)
+                mlflow.log_artifact(model_path, "model")
+                os.remove(model_path)
+            else:
+                model_path = "best_model.pkl"
+                with open(model_path, 'wb') as f:
+                    pickle.dump(best_model, f)
+                mlflow.log_artifact(model_path, "model")
+                os.remove(model_path)
+            
+            print(f"✅ Best model logged to MLflow")
+            print(f"🔗 Model URI: runs:/{run.info.run_id}/model")
+        
+        # 7. Extract final feature importance and save locally
+        final_feature_importance = self.extract_feature_importance(best_model, X_train_valid.columns)
         print("\nTop 10 most important features:")
-        print(feature_importance.head(10))
+        print(final_feature_importance.head(10))
         
-        # 6. Save model and artifacts
+        # Save artifacts locally
         os.makedirs(os.path.dirname(self.config.model_path), exist_ok=True)
         
-        # Save the trained model
+        # Save the best model
         with open(self.config.model_path, 'wb') as f:
-            pickle.dump(ngb_model, f)
+            pickle.dump(best_model, f)
         
         # Save selected features list
+        selected_features = X_train_valid.columns.tolist()
         with open(self.config.selected_features_path, 'wb') as f:
             pickle.dump(selected_features, f)
         
         # Save feature importance
-        feature_importance.to_csv(self.config.feature_importance_path, index=False)
+        final_feature_importance.to_csv(self.config.feature_importance_path, index=False)
         
         # Save cross-validation results
         cv_results_df = pd.DataFrame({
-            'train_rmse': -cv_results['train_neg_root_mean_squared_error'],
-            'test_rmse': -cv_results['test_neg_root_mean_squared_error'],
-            'train_mae': -cv_results['train_neg_mean_absolute_error'],
-            'test_mae': -cv_results['test_neg_mean_absolute_error']
+            'train_rmse': -best_cv_results['train_neg_root_mean_squared_error'],
+            'test_rmse': -best_cv_results['test_neg_root_mean_squared_error'],
+            'train_mae': -best_cv_results['train_neg_mean_absolute_error'],
+            'test_mae': -best_cv_results['test_neg_mean_absolute_error']
         })
         cv_results_df.to_csv(self.config.cv_results_path, index=False)
         
-        # Calculate and save final metrics
-        train_time = (datetime.now() - start_time).total_seconds()
+        # Calculate final metrics
+        total_time = (datetime.now() - start_time).total_seconds()
         metrics = {
+            'best_model': best_model_name,
+            'best_params': str(best_params),
             'train_rmse_mean': cv_results_df['train_rmse'].mean(),
             'train_rmse_std': cv_results_df['train_rmse'].std(),
             'test_rmse_mean': cv_results_df['test_rmse'].mean(),
@@ -186,14 +357,16 @@ class ModelTrainer:
             'test_mae_std': cv_results_df['test_mae'].std(),
             'n_features': len(selected_features),
             'n_samples': len(X_train_valid),
-            'training_time_seconds': train_time
+            'total_training_time_seconds': total_time
         }
         
         # Save metrics
         metrics_df = pd.DataFrame([metrics])
         metrics_df.to_csv(self.config.metrics_path, index=False)
         
-        print(f"\nModel training completed in {train_time:.2f} seconds!")
+        print(f"\nModel training completed in {total_time:.2f} seconds!")
+        print(f"Best model: {best_model_name}")
+        print(f"Best parameters: {best_params}")
         print(f"Model saved at: {self.config.model_path}")
         print(f"Selected features saved at: {self.config.selected_features_path}")
         print(f"Feature importance saved at: {self.config.feature_importance_path}")

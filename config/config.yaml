@@ -27,6 +27,20 @@ model_training:
   cv_results_path: artifacts/model_training/cv_results.csv
   metrics_path: artifacts/model_training/metrics.csv
 
+model_prediction:
+  root_dir: artifacts/model_prediction
+  test_data_path: artifacts/data_ingestion/test.csv  # Raw test data with RUL
+  preprocessor_path: artifacts/data_transformation/preprocessor.pkl
+  long_term_pipeline_path: artifacts/feature_engineering/long_term_pipeline.pkl
+  short_term_pipeline_path: artifacts/feature_engineering/short_term_pipeline.pkl
+  model_path: artifacts/model_training/ngboost_model.pkl
+  selected_features_path: artifacts/model_training/selected_features.pkl
+  # Output paths
+  predictions_path: artifacts/model_prediction/predictions.csv
+  evaluation_rul_path: artifacts/model_prediction/true_rul.csv
+  evaluation_metrics_path: artifacts/model_prediction/evaluation_metrics.csv
+  evaluation_plots_path: artifacts/model_prediction/evaluation_plots.png
+
 database:
   host: localhost
   port: 5432
