@@ -2,18 +2,23 @@ from src.Turbine_RUL.config.configuration import ConfigurationManager
 from src.Turbine_RUL.components.model_prediction import ModelPrediction
 from src.Turbine_RUL.logging import logger
 
-
 STAGE_NAME = "Model Prediction Stage"
 
 class ModelPredictionPipeline:
     def __init__(self):
         pass
-    
+        
     def main(self):
         config = ConfigurationManager()
         model_prediction_config = config.get_model_prediction_config()
         model_predictor = ModelPrediction()
-        predictions_path, evaluation_metrics_path = model_predictor.initiate_model_prediction()
+        
+        # The method returns a dictionary, not individual paths
+        results = model_predictor.initiate_model_prediction()
+        
+        # Extract the paths from results dictionary
+        predictions_path = results['predictions_path']
+        evaluation_metrics_path = results['evaluation_metrics_path']
         
         return predictions_path, evaluation_metrics_path
 

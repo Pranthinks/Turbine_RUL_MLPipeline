@@ -142,3 +142,41 @@ Traceback (most recent call last):
   File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\src\Turbine_RUL\components\model_prediction.py", line 193, in initiate_model_prediction
     test_long_h_fts = features_long_pipe.transform(preprocessed_data)
 NameError: name 'preprocessed_data' is not defined
+[2025-08-02 20:08:52,986: INFO: model_predict: >>>>>> stage Model Prediction Stage started <<<<<<]
+[2025-08-02 20:13:44,731: ERROR: model_predict: index 22 is out of bounds for axis 1 with size 16]
+Traceback (most recent call last):
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\model_predict.py", line 29, in <module>
+    predictions_path, evaluation_metrics_path = obj.main()
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\model_predict.py", line 17, in main
+    results = model_predictor.initiate_model_prediction()
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\src\Turbine_RUL\components\model_prediction.py", line 425, in initiate_model_prediction
+    predictions = self.make_predictions(X_test_prepared)
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\src\Turbine_RUL\components\model_prediction.py", line 155, in make_predictions
+    pred_rul = self.model.predict(X_test_prepared.values)
+  File "C:\Users\sures\anaconda3\envs\venv\lib\site-packages\ngboost\ngboost.py", line 590, in predict
+    return self.pred_dist(X, max_iter=max_iter).predict()
+  File "C:\Users\sures\anaconda3\envs\venv\lib\site-packages\ngboost\ngboost.py", line 543, in pred_dist
+    params = np.asarray(self.pred_param(X, max_iter))
+  File "C:\Users\sures\anaconda3\envs\venv\lib\site-packages\ngboost\ngboost.py", line 136, in pred_param
+    resids = np.array([model.predict(X[:, col_idx]) for model in models]).T
+  File "C:\Users\sures\anaconda3\envs\venv\lib\site-packages\ngboost\ngboost.py", line 136, in <listcomp>
+    resids = np.array([model.predict(X[:, col_idx]) for model in models]).T
+IndexError: index 22 is out of bounds for axis 1 with size 16
+[2025-08-02 20:14:54,794: INFO: model_predict: >>>>>> stage Model Prediction Stage started <<<<<<]
+[2025-08-02 20:20:00,883: ERROR: model_predict: Feature mismatch! Model requires 26 features but only 26 are available. Missing features: {'14', '0', '6', '5', '19', '4', '3', '8', '2', '1'}. This indicates a pipeline inconsistency between training and prediction.]
+Traceback (most recent call last):
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\model_predict.py", line 29, in <module>
+    predictions_path, evaluation_metrics_path = obj.main()
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\model_predict.py", line 17, in main
+    results = model_predictor.initiate_model_prediction()
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\src\Turbine_RUL\components\model_prediction.py", line 443, in initiate_model_prediction
+    X_test_prepared, engine_ids = self.prepare_prediction_data(test_features)
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\src\Turbine_RUL\components\model_prediction.py", line 152, in prepare_prediction_data
+    raise ValueError(
+ValueError: Feature mismatch! Model requires 26 features but only 26 are available. Missing features: {'14', '0', '6', '5', '19', '4', '3', '8', '2', '1'}. This indicates a pipeline inconsistency between training and prediction.
+[2025-08-02 20:46:11,862: INFO: model_predict: >>>>>> stage Model Prediction Stage started <<<<<<]
+[2025-08-02 20:53:01,326: INFO: model_predict: Predictions saved at: artifacts/model_prediction/predictions.csv]
+[2025-08-02 20:53:01,326: INFO: model_predict: Evaluation metrics saved at: artifacts/model_prediction/evaluation_metrics.csv]
+[2025-08-02 20:53:01,326: INFO: model_predict: >>>>>> stage Model Prediction Stage completed <<<<<<
+
+x==========x]
