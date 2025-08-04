@@ -180,3 +180,33 @@ ValueError: Feature mismatch! Model requires 26 features but only 26 are availab
 [2025-08-02 20:53:01,326: INFO: model_predict: >>>>>> stage Model Prediction Stage completed <<<<<<
 
 x==========x]
+[2025-08-03 12:40:20,251: INFO: model_predict: >>>>>> stage Model Prediction Stage started <<<<<<]
+[2025-08-03 12:40:20,440: ERROR: model_predict: No module named 'ngboost']
+Traceback (most recent call last):
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\model_predict.py", line 29, in <module>
+    predictions_path, evaluation_metrics_path = obj.main()
+                                                ^^^^^^^^^^
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\model_predict.py", line 17, in main
+    results = model_predictor.initiate_model_prediction()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\src\Turbine_RUL\components\model_prediction.py", line 289, in initiate_model_prediction
+    self.load_artifacts()
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\src\Turbine_RUL\components\model_prediction.py", line 32, in load_artifacts
+    setattr(self, attr_name, pickle.load(f))
+                             ^^^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'ngboost'
+[2025-08-03 12:40:51,770: INFO: model_predict: >>>>>> stage Model Prediction Stage started <<<<<<]
+[2025-08-03 12:50:20,401: INFO: model_predict: Predictions saved at: artifacts/model_prediction/predictions.csv]
+[2025-08-03 12:50:20,401: INFO: model_predict: Evaluation metrics saved at: artifacts/model_prediction/evaluation_metrics.csv]
+[2025-08-03 12:50:20,401: INFO: model_predict: >>>>>> stage Model Prediction Stage completed <<<<<<
+
+x==========x]
+[2025-08-03 12:52:06,085: INFO: model_predict: >>>>>> stage Model Prediction Stage started <<<<<<]
+[2025-08-03 17:31:28,314: INFO: model_predict: >>>>>> stage Model Prediction Stage started <<<<<<]
+[2025-08-03 19:13:06,974: INFO: model_predict: >>>>>> stage Model Prediction Stage started <<<<<<]
+[2025-08-03 19:32:08,002: INFO: model_predict: >>>>>> stage Model Prediction Stage started <<<<<<]
+[2025-08-03 19:38:32,449: INFO: model_predict: Predictions saved at: artifacts/model_prediction/predictions.csv]
+[2025-08-03 19:38:32,449: INFO: model_predict: Evaluation metrics saved at: artifacts/model_prediction/evaluation_metrics.csv]
+[2025-08-03 19:38:32,449: INFO: model_predict: >>>>>> stage Model Prediction Stage completed <<<<<<
+
+x==========x]
