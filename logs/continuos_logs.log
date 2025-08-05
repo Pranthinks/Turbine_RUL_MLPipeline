@@ -210,3 +210,18 @@ x==========x]
 [2025-08-03 19:38:32,449: INFO: model_predict: >>>>>> stage Model Prediction Stage completed <<<<<<
 
 x==========x]
+[2025-08-05 16:39:49,677: INFO: drift: >>>>>> stage Manual Drift Reference Calculation started <<<<<<]
+[2025-08-05 16:39:49,860: INFO: drift: Reference calculation completed for 24 features]
+[2025-08-05 16:39:49,860: INFO: drift: >>>>>> stage Manual Drift Reference Calculation completed <<<<<<
+
+x==========x]
+[2025-08-05 16:42:55,474: INFO: drift: >>>>>> Testing Drift Detection <<<<<<]
+[2025-08-05 16:42:55,688: INFO: drift: >>>>>> Drift Detection Test Completed <<<<<<]
+[2025-08-05 16:53:14,790: INFO: drift: >>>>>> Testing Drift Detection <<<<<<]
+[2025-08-05 16:53:14,952: INFO: drift: >>>>>> Drift Detection Test Completed <<<<<<]
+[2025-08-05 16:54:29,803: INFO: drift: >>>>>> Testing Drift Detection <<<<<<]
+[2025-08-05 16:54:29,965: INFO: drift: >>>>>> Drift Detection Test Completed <<<<<<]
+[2025-08-05 16:55:16,031: INFO: drift: >>>>>> Testing Drift Detection <<<<<<]
+[2025-08-05 16:55:16,189: INFO: drift: >>>>>> Drift Detection Test Completed <<<<<<]
+[2025-08-05 16:55:52,449: INFO: drift: >>>>>> Testing Drift Detection <<<<<<]
+[2025-08-05 16:55:52,601: INFO: drift: >>>>>> Drift Detection Test Completed <<<<<<]

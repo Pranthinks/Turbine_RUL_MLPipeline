@@ -1,5 +1,5 @@
 import yaml
-from src.Turbine_RUL.entity import DataIngestionConfig, DataTransformationConfig, FeatureEngineeringConfig, ModelTrainingConfig, ModelPredictionConfig
+from src.Turbine_RUL.entity import DataIngestionConfig, DataTransformationConfig, FeatureEngineeringConfig, ModelTrainingConfig, ModelPredictionConfig, DriftDetectionConfig
 
 class ConfigurationManager:
     def __init__(self, config_path="config/config.yaml"):
@@ -53,4 +53,15 @@ class ConfigurationManager:
             evaluation_rul_path=config['evaluation_rul_path'],
             evaluation_metrics_path=config['evaluation_metrics_path'],
             evaluation_plots_path=config['evaluation_plots_path']
+        )
+    
+    def get_drift_detection_config(self):
+        config = self.config['drift_detection']
+        return DriftDetectionConfig(
+            root_dir=config['root_dir'],
+            train_data_path=config['train_data_path'],
+            test_data_path=config['test_data_path'],
+            reference_data_path=config['reference_data_path'],
+            reference_stats_path=config['reference_stats_path'],
+            drift_report_path=config['drift_report_path']
         )

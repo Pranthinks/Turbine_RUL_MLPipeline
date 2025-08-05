@@ -6,6 +6,15 @@ class DataIngestionConfig:
     test_data_path: str
 
 @dataclass
+class DriftDetectionConfig:
+    root_dir: str
+    train_data_path: str
+    test_data_path: str
+    reference_data_path: str
+    reference_stats_path: str
+    drift_report_path: str
+
+@dataclass
 class DataTransformationConfig:
     train_data_path: str                         
     train_preprocessed_path: str                          
