@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  turbine-rul:
+    build: .
+    container_name: turbine-rul-pipeline
+    volumes:
+      # Use named volumes instead of bind mounts
+      - turbine_artifacts:/app/artifacts    # ← Stored in Docker
+      - turbine_logs:/app/logs             # ← Stored in Docker
+      - turbine_config:/app/config         # ← Stored in Docker
+    environment:
+      - PYTHONPATH=/app
+
+volumes:
+  turbine_artifacts:
+  turbine_logs:
+  turbine_config:

@@ -225,3 +225,72 @@ x==========x]
 [2025-08-05 16:55:16,189: INFO: drift: >>>>>> Drift Detection Test Completed <<<<<<]
 [2025-08-05 16:55:52,449: INFO: drift: >>>>>> Testing Drift Detection <<<<<<]
 [2025-08-05 16:55:52,601: INFO: drift: >>>>>> Drift Detection Test Completed <<<<<<]
+[2025-08-06 12:56:48,429: INFO: model_predict: >>>>>> stage Model Prediction Stage started <<<<<<]
+[2025-08-06 13:10:12,346: INFO: model_predict: Predictions saved at: artifacts/model_prediction/predictions.csv]
+[2025-08-06 13:10:12,346: INFO: model_predict: Evaluation metrics saved at: artifacts/model_prediction/evaluation_metrics.csv]
+[2025-08-06 13:10:12,346: INFO: model_predict: >>>>>> stage Model Prediction Stage completed <<<<<<
+
+x==========x]
+[2025-08-06 13:11:44,296: INFO: model_predict: >>>>>> stage Model Prediction Stage started <<<<<<]
+[2025-08-06 13:22:55,523: INFO: model_predict: Predictions saved at: artifacts/model_prediction/predictions.csv]
+[2025-08-06 13:22:55,523: INFO: model_predict: Evaluation metrics saved at: artifacts/model_prediction/evaluation_metrics.csv]
+[2025-08-06 13:22:55,523: INFO: model_predict: >>>>>> stage Model Prediction Stage completed <<<<<<
+
+x==========x]
+[2025-08-06 21:00:40,836: INFO: model_predict: >>>>>> stage Model Prediction Stage started <<<<<<]
+[2025-08-06 21:00:40,936: ERROR: model_predict: No module named 'ngboost']
+Traceback (most recent call last):
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\model_predict.py", line 29, in <module>
+    predictions_path, evaluation_metrics_path = obj.main()
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\model_predict.py", line 17, in main
+    results = model_predictor.initiate_model_prediction()
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\src\Turbine_RUL\components\model_prediction.py", line 109, in initiate_model_prediction
+    self.load_artifacts()
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\src\Turbine_RUL\components\model_prediction.py", line 34, in load_artifacts
+    setattr(self, attr_name, pickle.load(f))
+ModuleNotFoundError: No module named 'ngboost'
+[2025-08-06 21:01:12,063: INFO: model_predict: >>>>>> stage Model Prediction Stage started <<<<<<]
+[2025-08-06 21:01:12,325: ERROR: model_predict: No module named 'tsfresh']
+Traceback (most recent call last):
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\model_predict.py", line 29, in <module>
+    predictions_path, evaluation_metrics_path = obj.main()
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\model_predict.py", line 17, in main
+    results = model_predictor.initiate_model_prediction()
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\src\Turbine_RUL\components\model_prediction.py", line 109, in initiate_model_prediction
+    self.load_artifacts()
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\src\Turbine_RUL\components\model_prediction.py", line 34, in load_artifacts
+    setattr(self, attr_name, pickle.load(f))
+  File "C:\Users\sures\Downloads\Turbine_RUL_MLPipeline\src\Turbine_RUL\components\feature_engineering.py", line 10, in <module>
+    from tsfresh import extract_features, select_features
+ModuleNotFoundError: No module named 'tsfresh'
+[2025-08-06 21:02:45,005: INFO: model_predict: >>>>>> stage Model Prediction Stage started <<<<<<]
+[2025-08-06 21:04:28,889: INFO: main: stage Data Ingestion stage initiated]
+[2025-08-06 21:04:47,218: INFO: model_train: >>>>>> stage Model Training Stage started <<<<<<]
+[2025-08-06 21:06:32,908: INFO: drift: >>>>>> Testing Drift Detection <<<<<<]
+[2025-08-06 21:06:33,100: INFO: drift: >>>>>> Drift Detection Test Completed <<<<<<]
+[2025-08-07 16:22:02,636: INFO: font_manager: generated new fontManager]
+[2025-08-07 16:22:03,866: INFO: run_stage: Starting Drift Detection]
+[2025-08-07 16:22:04,106: INFO: run_stage: Stage 2 completed successfully!]
+[2025-08-07 16:23:04,150: INFO: font_manager: generated new fontManager]
+[2025-08-07 16:23:26,149: INFO: font_manager: generated new fontManager]
+[2025-08-07 16:23:26,778: INFO: run_stage: Starting Model Prediction]
+[2025-08-07 16:28:31,579: INFO: run_stage: Stage 6 completed successfully!]
+[2025-08-07 16:35:10,126: INFO: font_manager: generated new fontManager]
+[2025-08-07 16:35:10,748: INFO: run_stage: Starting Drift Detection]
+[2025-08-07 16:35:10,821: INFO: run_stage: Stage 2 completed successfully!]
+[2025-08-07 16:51:23,405: INFO: font_manager: generated new fontManager]
+[2025-08-07 16:51:24,785: INFO: run_stage: Starting Data Ingestion]
+[2025-08-07 16:56:43,838: INFO: font_manager: generated new fontManager]
+[2025-08-07 16:56:44,985: INFO: run_stage: Starting Data Ingestion]
+[2025-08-07 16:59:50,668: INFO: font_manager: generated new fontManager]
+[2025-08-07 16:59:51,779: INFO: run_stage: Starting Data Ingestion]
+[2025-08-07 16:59:54,587: INFO: run_stage: Stage 1 completed successfully!]
+[2025-08-07 17:00:17,207: INFO: font_manager: generated new fontManager]
+[2025-08-07 17:00:17,876: INFO: run_stage: Starting Data Ingestion]
+[2025-08-07 17:00:20,555: INFO: run_stage: Stage 1 completed successfully!]
+[2025-08-07 17:08:00,073: INFO: font_manager: generated new fontManager]
+[2025-08-07 17:08:01,170: INFO: run_stage: Starting Data Ingestion]
+[2025-08-07 17:08:03,864: INFO: run_stage: Stage 1 completed successfully!]
+[2025-08-07 17:08:32,622: INFO: font_manager: generated new fontManager]
+[2025-08-07 17:08:33,287: INFO: run_stage: Starting Data Ingestion]
+[2025-08-07 17:08:35,792: INFO: run_stage: Stage 1 completed successfully!]
