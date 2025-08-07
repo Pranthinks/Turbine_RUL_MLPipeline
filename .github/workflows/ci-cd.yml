@@ -9,7 +9,10 @@ on:
 
 jobs:
   test:
-    runs-on: self-hosted  # Runs on your local PC
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: cmd        # Force use of Command Prompt instead of PowerShell  # Runs on your local PC
     steps:
     - uses: actions/checkout@v4
     
@@ -20,7 +23,9 @@ jobs:
       run: docker run --rm turbine-rul python -c "import pandas, numpy, sklearn; print('✅ Imports OK')"
     
     - name: Test Pipeline Start
-      run: timeout 60s docker-compose up || echo "Pipeline started successfully"
+      run: |
+        echo "Testing pipeline can start..."
+        docker-compose run --rm turbine-rul python -c "import main; print('✅ Pipeline script loads OK')"
 
   deploy:
     needs: test
