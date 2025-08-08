@@ -1,45 +1,122 @@
-# .github/workflows/ci-cd.yml
-name: CI/CD
+# .github/workflows/mlops-pipeline.yml
+name: MLOps Pipeline - Turbine RUL
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
   pull_request:
     branches: [ main ]
 
 jobs:
-  test:
+  build-and-test:
     runs-on: self-hosted
     defaults:
       run:
-        shell: cmd        # Force use of Command Prompt instead of PowerShell  # Runs on your local PC
+        shell: cmd  # Keep your existing shell preference
+    
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Stop existing containers
+      run: |
+        docker-compose down --remove-orphans
+        docker container prune -f
+      continue-on-error: true
     
-    - name: Build
-      run: docker build -t turbine-rul .
+    - name: Rebuild existing image with latest code
+      run: |
+        docker-compose build
+        echo "Updated existing image: turbine_rul_mlpipeline-turbine-rul:latest"
+        echo "Build SHA: ${{ github.sha }}"
     
-    - name: Test Imports
-      run: docker run --rm turbine-rul python -c "import pandas, numpy, sklearn; print('✅ Imports OK')"
+    - name: Test container health
+      run: |
+        echo "Testing container health..."
+        docker run --rm turbine_rul_mlpipeline-turbine-rul:latest python -c "import pandas, numpy, sklearn; print('✅ Dependencies OK')"
     
-    - name: Test Pipeline Start
+    - name: Test pipeline imports
       run: |
         echo "Testing pipeline can start..."
-        docker-compose run --rm turbine-rul python -c "import main; print('✅ Pipeline script loads OK')"
+        docker run --rm turbine_rul_mlpipeline-turbine-rul:latest python -c "import main; print('✅ Pipeline loads OK')"
+    
+    - name: Run basic smoke test
+      run: |
+        echo "Running smoke test..."
+        docker-compose run --rm turbine-rul python -c "
+        try:
+            import main
+            print('✅ Main module imports successfully')
+            print('✅ Container ready for Airflow')
+        except Exception as e:
+            print(f'❌ Error: {e}')
+            exit(1)
+        "
 
-  deploy:
-    needs: test
-    runs-on: self-hosted  # Runs on your local PC
+  deploy-and-integrate:
+    needs: build-and-test
+    runs-on: self-hosted
     if: github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        shell: cmd
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
     
-    - name: Run Complete Pipeline
-      run: docker-compose up
+    - name: Backup current image (optional)
+      run: |
+        echo "Creating backup of current image..."
+        docker tag turbine_rul_mlpipeline-turbine-rul:latest turbine_rul_mlpipeline-turbine-rul:backup-${{ github.sha }}
+        echo "Backup created: turbine_rul_mlpipeline-turbine-rul:backup-${{ github.sha }}"
     
-    - name: Save Results
+    - name: Container ready for Airflow
+      run: |
+        echo "✅ Container updated and ready for manual Airflow execution"
+        echo "Image: turbine_rul_mlpipeline-turbine-rul:latest"
+        echo "SHA: ${{ github.sha }}"
+        echo "You can now run your Airflow DAG manually"
+    
+    - name: Clean up old backup images
+      run: |
+        echo "Cleaning up old backup images..."
+        docker image prune -f --filter "dangling=true"
+        echo "Keeping last 3 backup versions..."
+        for /f "skip=3 tokens=*" %%i in ('docker images turbine_rul_mlpipeline-turbine-rul --format "{{.ID}} {{.Tag}}" ^| findstr backup') do docker rmi turbine_rul_mlpipeline-turbine-rul:%%i
+      continue-on-error: true
+    
+    - name: Create deployment summary
+      run: |
+        echo "=== Deployment Summary ===" > deployment_summary.txt
+        echo "Build SHA: ${{ github.sha }}" >> deployment_summary.txt
+        echo "Timestamp: %date% %time%" >> deployment_summary.txt
+        echo "Image: turbine_rul_mlpipeline-turbine-rul:latest" >> deployment_summary.txt
+        echo "Status: Ready for manual Airflow execution" >> deployment_summary.txt
+        type deployment_summary.txt
+    
+    - name: Save deployment artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: results
-        path: artifacts/
+        name: deployment-info-${{ github.sha }}
+        path: deployment_summary.txt
+
+  notify:
+    needs: [build-and-test, deploy-and-integrate]
+    runs-on: self-hosted
+    if: always()
+    
+    steps:
+    - name: Notify success
+      if: needs.deploy-and-integrate.result == 'success'
+      run: |
+        echo "🚀 MLOps Pipeline Updated Successfully!"
+        echo "✅ Image: turbine_rul_mlpipeline-turbine-rul:latest"
+        echo "✅ SHA: ${{ github.sha }}"
+        echo "✅ Ready for manual Airflow execution"
+    
+    - name: Notify failure
+      if: failure()
+      run: |
+        echo "❌ MLOps Pipeline Update Failed!"
+        echo "Check the logs above for details"
