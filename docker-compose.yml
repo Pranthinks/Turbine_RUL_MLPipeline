@@ -9,6 +9,10 @@ services:
       - turbine_config:/app/config         # ← Stored in Docker
     environment:
       - PYTHONPATH=/app
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI}
+      - MLFLOW_TRACKING_USERNAME=${MLFLOW_TRACKING_USERNAME}
+      - MLFLOW_TRACKING_PASSWORD=${MLFLOW_TRACKING_PASSWORD}
+
 
 volumes:
   turbine_artifacts:
