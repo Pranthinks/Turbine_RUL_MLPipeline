@@ -24,20 +24,9 @@ ENV PYTHONPATH=/app
 ENV PROMETHEUS_ENABLED=true
 ENV PUSHGATEWAY_URL=pushgateway:9091
 
-# Add health check with monitoring awareness
+# Simple health check that works reliably
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "
-import requests
-import os
-try:
-    if os.getenv('PROMETHEUS_ENABLED') == 'true':
-        pushgateway_url = os.getenv('PUSHGATEWAY_URL', 'pushgateway:9091')
-        # Quick health check - try to reach pushgateway
-        requests.get(f'http://{pushgateway_url}/metrics', timeout=5)
-    print('Container healthy')
-except:
-    print('Container healthy - monitoring optional')
-" || exit 1
+    CMD python -c "import pandas, numpy; print('Container healthy')" || exit 1
 
 # Default command runs all stages
 CMD ["python", "main.py"]
