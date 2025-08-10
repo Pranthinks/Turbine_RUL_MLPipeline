@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import pickle
 import warnings
+import time
 from sklearn.pipeline import Pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import StandardScaler
@@ -9,7 +10,7 @@ from sklearn.decomposition import PCA
 from datetime import datetime
 from tsfresh import extract_features, select_features
 from tsfresh.utilities.dataframe_functions import roll_time_series
-
+from src.Turbine_RUL.monitoring.enhanced_metrics import TurbineMLOpsMetrics, monitor_pipeline_stage
 from src.Turbine_RUL.config.configuration import ConfigurationManager
 from src.Turbine_RUL.utils.common import calculate_RUL
 
@@ -163,6 +164,8 @@ class FeatureEngineering:
     def __init__(self):
         config_manager = ConfigurationManager()
         self.config = config_manager.get_feature_engineering_config()
+        self.metrics = TurbineMLOpsMetrics()
+
 
     def create_long_term_pipeline(self):
         """Create pipeline for long-term features (19 time steps)"""
@@ -181,6 +184,7 @@ class FeatureEngineering:
             ('features-selection', TSFreshFeaturesSelector(fdr_level=0.0002)),
         ])
 
+    @monitor_pipeline_stage('feature_engineering')
     def initiate_feature_engineering(self):
         """Main feature engineering process"""
         print("Starting Feature Engineering...")
@@ -192,13 +196,17 @@ class FeatureEngineering:
         features_long_h_pipe = self.create_long_term_pipeline()
         features_short_h_pipe = self.create_short_term_pipeline()
         
-        # Extract long-term features
+        # Extract long-term features WITH TIMING
         print("Extracting long-term features...")
+        start_long = time.time()
         train_long_h_ftrs = features_long_h_pipe.fit_transform(train_data)
+        long_duration = time.time() - start_long
         
-        # Extract short-term features
+        # Extract short-term features WITH TIMING
         print("Extracting short-term features...")
+        start_short = time.time()
         train_short_h_ftrs = features_short_h_pipe.fit_transform(train_data)
+        short_duration = time.time() - start_short
         
         # Merge both feature sets
         train_ftrs = train_long_h_ftrs.merge(
@@ -207,6 +215,26 @@ class FeatureEngineering:
             right_index=True, 
             left_index=True
         )
+
+        # ENHANCED MONITORING - Record feature engineering metrics
+        extraction_times = {
+            'long_term': long_duration,
+            'short_term': short_duration
+        }
+        
+        feature_counts = {
+            'long_term': train_long_h_ftrs.shape[1],
+            'short_term': train_short_h_ftrs.shape[1],
+            'final': train_ftrs.shape[1]
+        }
+        
+        # Calculate selection ratio
+        original_features = train_data.shape[1]
+        final_features = train_ftrs.shape[1]
+        selection_ratio = final_features / original_features if original_features > 0 else 1.0
+        
+        # Record monitoring metrics
+        self.metrics.record_feature_engineering_metrics(extraction_times, feature_counts, selection_ratio)
         
         # Set proper index names if it's a MultiIndex
         if hasattr(train_ftrs.index, 'names') and len(train_ftrs.index.names) == 2:

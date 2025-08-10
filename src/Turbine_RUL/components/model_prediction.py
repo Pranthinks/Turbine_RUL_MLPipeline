@@ -1,9 +1,10 @@
 import pandas as pd
 import numpy as np
 import pickle
+import time
 import warnings
 from datetime import datetime
-
+from src.Turbine_RUL.monitoring.enhanced_metrics import TurbineMLOpsMetrics, monitor_pipeline_stage
 from src.Turbine_RUL.config.configuration import ConfigurationManager
 from src.Turbine_RUL.utils.common import (
     calculate_evaluation_metrics, create_evaluation_plots, 
@@ -17,6 +18,9 @@ class ModelPrediction:
     def __init__(self):
         config_manager = ConfigurationManager()
         self.config = config_manager.get_model_prediction_config()
+        # Add enhanced metrics
+        self.metrics = TurbineMLOpsMetrics()
+
         
     def load_artifacts(self):
         """Load all trained artifacts"""
@@ -93,6 +97,7 @@ class ModelPrediction:
         print(f"✅ Predictions completed: {pred_rul.min():.1f} to {pred_rul.max():.1f}")
         return pred_rul
     
+    @monitor_pipeline_stage('model_prediction')
     def initiate_model_prediction(self):
         """Core prediction pipeline with evaluation"""
         print("Starting Model Prediction Pipeline...")
@@ -109,7 +114,10 @@ class ModelPrediction:
         self.load_artifacts()
         test_features = self.preprocess_and_extract_features(raw_test_data)
         X_test_prepared, engine_ids = self.prepare_prediction_data(test_features)
+        # Time the prediction step
+        prediction_start = time.time()
         predictions = self.make_predictions(X_test_prepared)
+        prediction_time = time.time() - prediction_start
         
         # Evaluate if true RUL values are available
         metrics = true_rul_array = pred_rul_array = None
@@ -127,8 +135,25 @@ class ModelPrediction:
                               self.config.predictions_path, self.config.evaluation_metrics_path)
         
         total_time = (datetime.now() - start_time).total_seconds()
-        print(f"\n✅ Pipeline completed in {total_time:.2f} seconds!")
+        # ENHANCED MONITORING - Record comprehensive prediction metrics
+        evaluation_metrics_dict = {}
+        if metrics:
+            evaluation_metrics_dict = {
+                'rmse': metrics.get('rmse', 0),
+                'mae': metrics.get('mae', 0),
+                'r2': metrics.get('r2_score', 0),
+                'mape': metrics.get('mape', 0)
+            }
         
+        self.metrics.record_prediction_metrics(predictions, prediction_time, evaluation_metrics_dict)
+        
+        # Check SLA compliance (example: pipeline should complete in < 30 minutes)
+        sla_compliance = 1 if total_time < 1800 else 0  # 30 minutes SLA
+        self.metrics.pipeline_sla_compliance.set(sla_compliance)
+        self.metrics.total_pipeline_duration.set(total_time)
+        print(f"\n✅ Pipeline completed in {total_time:.2f} seconds!")
+
+
         return {
             'predictions_path': self.config.predictions_path,
             'evaluation_rul_path': self.config.evaluation_rul_path,

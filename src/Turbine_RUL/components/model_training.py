@@ -13,7 +13,7 @@ from ngboost import NGBRegressor
 from ngboost.distns import Poisson
 from dotenv import load_dotenv
 load_dotenv()
-
+from src.Turbine_RUL.monitoring.enhanced_metrics import TurbineMLOpsMetrics, monitor_pipeline_stage
 from src.Turbine_RUL.config.configuration import ConfigurationManager
 from src.Turbine_RUL.utils.common import calculate_RUL
 
@@ -43,7 +43,7 @@ class ModelTrainer:
     def __init__(self):
         config_manager = ConfigurationManager()
         self.config = config_manager.get_model_training_config()
-        
+        self.metrics = TurbineMLOpsMetrics()
         # Setup MLflow
         mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI"))
         
@@ -100,7 +100,7 @@ class ModelTrainer:
         return feature_importance
     
     
-    
+    @monitor_pipeline_stage('model_training')
     def initiate_model_training(self):
         """Main model training process with hyperparameter tuning"""
         print("Starting Model Training with Hyperparameter Tuning...")
@@ -365,6 +365,19 @@ class ModelTrainer:
         # Save metrics
         metrics_df = pd.DataFrame([metrics])
         metrics_df.to_csv(self.config.metrics_path, index=False)
+        # ENHANCED MONITORING - Record comprehensive training metrics
+        total_trials = len(ngboost_params) + len(rf_params)  # 4 + 4 = 8 trials
+        self.metrics.record_training_metrics(
+            cv_results_df, 
+            best_model_name, 
+            len(X_train_valid),
+            hyperparameter_trials=total_trials
+        )
+        
+        # Calculate improvement over baseline (simple baseline = std of targets)
+        baseline_rmse = np.std(y_train_valid)  # Simple baseline
+        improvement = ((baseline_rmse - best_score) / baseline_rmse) * 100
+        self.metrics.best_model_improvement.set(max(0, improvement))
         
         print(f"\nModel training completed in {total_time:.2f} seconds!")
         print(f"Best model: {best_model_name}")

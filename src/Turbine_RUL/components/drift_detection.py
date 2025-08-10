@@ -7,7 +7,7 @@ from datetime import datetime
 from scipy import stats
 import warnings
 warnings.filterwarnings("ignore")
-from src.Turbine_RUL.monitoring.docker_metrics import DockerMLOpsMetrics, monitor_pipeline_stage
+from src.Turbine_RUL.monitoring.enhanced_metrics import TurbineMLOpsMetrics, monitor_pipeline_stage
 from src.Turbine_RUL.config.configuration import ConfigurationManager
 
 class DriftDetector:
@@ -15,7 +15,7 @@ class DriftDetector:
         config_manager = ConfigurationManager()
         self.config = config_manager.get_drift_detection_config()
         self.drift_results = {}
-        self.metrics = DockerMLOpsMetrics()
+        self.metrics = TurbineMLOpsMetrics()
     
     def calculate_and_save_reference(self):
         """Calculate reference data from training set - RUN ONCE MANUALLY"""
@@ -329,18 +329,8 @@ class DriftDetector:
         with open(self.config.drift_report_path, 'w') as f:
             json.dump(drift_report, f, indent=2, default=str)
 
-        if self.metrics.monitoring_enabled:
-            # Record drift metrics
-            self.metrics.drift_detected.labels(drift_type='overall').set(1 if overall_drift else 0)
-            self.metrics.drift_detected.labels(drift_type='data').set(1 if data_drift_detected else 0)
-            self.metrics.drift_detected.labels(drift_type='quality').set(1 if quality_drift_detected else 0)
-            self.metrics.drift_detected.labels(drift_type='temporal').set(1 if temporal_drift_detected else 0)
-            
-            # Record data quality
-            missing_ratio = new_data.isnull().sum().sum() / (new_data.shape[0] * new_data.shape[1])
-            quality_score = 1 - missing_ratio
-            self.metrics.data_quality.labels(dataset_type='test').set(quality_score)
-        
+        # ENHANCED MONITORING - Record comprehensive drift metrics
+        self.metrics.record_drift_detection_metrics(drift_report)
         
         # Print summary
         print("\n" + "="*60)
