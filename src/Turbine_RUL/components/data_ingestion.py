@@ -3,6 +3,7 @@ import yaml
 import pandas as pd
 import psycopg2
 from src.Turbine_RUL.config.configuration import ConfigurationManager
+from src.Turbine_RUL.monitoring.docker_metrics import DockerMLOpsMetrics, monitor_pipeline_stage
 
 class DataIngestion:
     def __init__(self):
@@ -13,6 +14,7 @@ class DataIngestion:
         # Load DB config
         with open("config/config.yaml") as f:
             self.db_config = yaml.safe_load(f)['database']
+        self.metrics = DockerMLOpsMetrics()
 
     def get_data_from_postgres(self, table_name):
         """Extract data from PostgreSQL for a specific table"""
@@ -33,11 +35,22 @@ class DataIngestion:
         
         print(f"Data saved: Train({train_df.shape}), Test({test_df.shape})")
 
+    
+    @monitor_pipeline_stage('data_ingestion')
     def initiate_data_ingestion(self):
         """Main data ingestion process"""
         # Get data from both tables
         train_df = self.get_data_from_postgres("train_turbofan_data")
         test_df = self.get_data_from_postgres("test_turbofan_data")
+
+        # ADD DATA QUALITY METRICS
+        if self.metrics.monitoring_enabled:
+            train_quality = 1 - (train_df.isnull().sum().sum() / (train_df.shape[0] * train_df.shape[1]))
+            test_quality = 1 - (test_df.isnull().sum().sum() / (test_df.shape[0] * test_df.shape[1]))
+            
+            self.metrics.data_quality.labels(dataset_type='train').set(train_quality)
+            self.metrics.data_quality.labels(dataset_type='test').set(test_quality)
+        
         
         # Save both datasets
         self.save_data(train_df, test_df)

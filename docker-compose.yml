@@ -1,20 +1,90 @@
+version: '3.8'
+
 services:
+  # Your existing MLOps pipeline service
   turbine-rul:
     build: .
     container_name: turbine-rul-pipeline
     volumes:
-      # Use named volumes instead of bind mounts
-      - turbine_artifacts:/app/artifacts    # ← Stored in Docker
-      - turbine_logs:/app/logs             # ← Stored in Docker
-      - turbine_config:/app/config         # ← Stored in Docker
+      - turbine_artifacts:/app/artifacts
+      - turbine_logs:/app/logs
+      - turbine_config:/app/config
+      # Add monitoring config volume
+      - ./monitoring_config:/app/monitoring_config:ro
     environment:
       - PYTHONPATH=/app
       - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI}
       - MLFLOW_TRACKING_USERNAME=${MLFLOW_TRACKING_USERNAME}
       - MLFLOW_TRACKING_PASSWORD=${MLFLOW_TRACKING_PASSWORD}
+      # Add monitoring environment variables
+      - PUSHGATEWAY_URL=pushgateway:9091
+      - PROMETHEUS_ENABLED=true
+    depends_on:
+      - pushgateway
+    networks:
+      - turbine-network
 
+  # Prometheus - Metrics storage and querying
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: turbine-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring_config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    networks:
+      - turbine-network
+    restart: unless-stopped
+
+  # Pushgateway - Receive metrics from batch jobs
+  pushgateway:
+    image: prom/pushgateway:latest
+    container_name: turbine-pushgateway
+    ports:
+      - "9091:9091"
+    volumes:
+      - pushgateway_data:/pushgateway
+    networks:
+      - turbine-network
+    restart: unless-stopped
+
+  # Grafana - Visualization and dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: turbine-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring_config/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - turbine-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+networks:
+  turbine-network:
+    driver: bridge
 
 volumes:
+  # Your existing volumes
   turbine_artifacts:
   turbine_logs:
   turbine_config:
+  
+  # New monitoring volumes
+  prometheus_data:
+  pushgateway_data:
+  grafana_data:
