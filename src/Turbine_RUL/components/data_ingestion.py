@@ -4,7 +4,6 @@ import pandas as pd
 import psycopg2
 from src.Turbine_RUL.config.configuration import ConfigurationManager
 from src.Turbine_RUL.monitoring.enhanced_metrics import TurbineMLOpsMetrics, monitor_pipeline_stage
-#Almost Done
 
 
 class DataIngestion:
