@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Turbine RUL Prediction</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .upload-section {
+            background: #f8f9ff;
+            border: 2px dashed #4facfe;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            transition: all 0.3s ease;
+        }
+
+        .upload-section:hover {
+            border-color: #00f2fe;
+            background: #f0f4ff;
+        }
+
+        .upload-section.dragover {
+            border-color: #00f2fe;
+            background: #e8f2ff;
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 3em;
+            color: #4facfe;
+            margin-bottom: 20px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            margin: 20px 0;
+        }
+
+        .file-input {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-button {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.3);
+        }
+
+        .file-input-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(79, 172, 254, 0.4);
+        }
+
+        .file-info {
+            margin-top: 15px;
+            padding: 15px;
+            background: #e8f5e8;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .file-info.show {
+            display: block;
+        }
+
+        .predict-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.2em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .predict-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .predict-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .results-section {
+            margin-top: 30px;
+            padding: 30px;
+            background: #f8f9ff;
+            border-radius: 15px;
+            display: none;
+        }
+
+        .results-section.show {
+            display: block;
+            animation: slideIn 0.5s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .result-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .result-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .result-label {
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4facfe;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #ffe6e6;
+            color: #d63031;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        .status-online {
+            background: #00b894;
+            color: white;
+        }
+
+        .status-offline {
+            background: #e17055;
+            color: white;
+        }
+
+        .summary-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .summary-stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            padding: 8px 15px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+
+        .predictions-card {
+            overflow-x: auto;
+        }
+
+        .predictions-table {
+            min-width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .table-header {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            font-weight: bold;
+        }
+
+        .header-cell {
+            padding: 15px;
+            text-align: center;
+        }
+
+        .table-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            border-bottom: 1px solid #eee;
+        }
+
+        .table-row:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        .table-row:hover {
+            background: #f0f4ff;
+        }
+
+        .table-cell {
+            padding: 15px;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .rul-value {
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #667eea;
+        }
+
+        .status-good {
+            color: #00b894;
+            font-weight: bold;
+        }
+
+        .status-warning {
+            color: #fdcb6e;
+            font-weight: bold;
+        }
+
+        .status-critical {
+            color: #e17055;
+            font-weight: bold;
+        }
+
+        .stats-card {
+            background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
+            color: white;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-box {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-name {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                margin: 10px;
+                border-radius: 15px;
+            }
+            
+            .header {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .main-content {
+                padding: 20px;
+            }
+
+            .table-header,
+            .table-row {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+
+            .header-cell,
+            .table-cell {
+                text-align: left;
+                padding: 10px;
+            }
+
+            .table-header .header-cell {
+                display: none;
+            }
+
+            .table-cell:before {
+                content: attr(data-label) ": ";
+                font-weight: bold;
+                margin-right: 10px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="status-indicator" id="statusIndicator">
+            <span id="statusText">Checking...</span>
+        </div>
+        
+        <div class="header">
+            <h1>🔧 Turbine RUL Prediction</h1>
+            <p>Upload your turbine data to get remaining useful life predictions</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="upload-section" id="uploadSection">
+                <div class="upload-icon">📊</div>
+                <h3>Upload Your Data File</h3>
+                <p>Drag & drop your data file here or click to browse</p>
+                <small style="color: #666; display: block; margin-top: 10px;">
+                    Supported formats: CSV, TXT, TSV, Excel (.xlsx), JSON
+                </small>
+                
+                <div class="file-input-wrapper">
+                    <input type="file" id="fileInput" class="file-input" accept=".csv,.xlsx,.json,.txt,.tsv">
+                    <button class="file-input-button" onclick="document.getElementById('fileInput').click()">
+                        Choose File
+                    </button>
+                </div>
+                
+                <div class="file-info" id="fileInfo">
+                    <strong>Selected file:</strong> <span id="fileName"></span><br>
+                    <strong>Size:</strong> <span id="fileSize"></span>
+                </div>
+            </div>
+            
+            <button class="predict-button" id="predictButton" onclick="makePrediction()" disabled>
+                🚀 Get Predictions
+            </button>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Processing your data... This may take a few moments</p>
+            </div>
+            
+            <div class="error" id="errorMsg"></div>
+            
+            <div class="results-section" id="resultsSection">
+                <h3>📈 Prediction Results</h3>
+                <div id="resultsContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000'; // Fixed API URL
+        let selectedFile = null;
+
+        // Check API status on load
+        checkAPIStatus();
+
+        // File input handling
+        const fileInput = document.getElementById('fileInput');
+        const uploadSection = document.getElementById('uploadSection');
+        const fileInfo = document.getElementById('fileInfo');
+        const predictButton = document.getElementById('predictButton');
+
+        fileInput.addEventListener('change', handleFileSelect);
+
+        // Drag and drop handling
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.classList.remove('dragover');
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                handleFileSelect();
+            }
+        });
+
+        function handleFileSelect() {
+            const file = fileInput.files[0];
+            if (file) {
+                selectedFile = file;
+                document.getElementById('fileName').textContent = file.name;
+                document.getElementById('fileSize').textContent = formatFileSize(file.size);
+                fileInfo.classList.add('show');
+                predictButton.disabled = false;
+            }
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        async function checkAPIStatus() {
+            const statusIndicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`, { 
+                    method: 'GET',
+                    timeout: 5000 
+                });
+                
+                if (response.ok) {
+                    statusIndicator.className = 'status-indicator status-online';
+                    statusText.textContent = '● Online';
+                } else {
+                    throw new Error('API not responding');
+                }
+            } catch (error) {
+                statusIndicator.className = 'status-indicator status-offline';
+                statusText.textContent = '● Online';
+            }
+        }
+
+        async function makePrediction() {
+            if (!selectedFile) return;
+
+            const loading = document.getElementById('loading');
+            const errorMsg = document.getElementById('errorMsg');
+            const resultsSection = document.getElementById('resultsSection');
+            
+            // Show loading, hide previous results/errors
+            loading.classList.add('show');
+            errorMsg.classList.remove('show');
+            resultsSection.classList.remove('show');
+            predictButton.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+
+                const response = await fetch(`${API_BASE_URL}/predict`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+
+                const result = await response.json();
+                displayResults(result);
+
+            } catch (error) {
+                console.error('Prediction error:', error);
+                errorMsg.textContent = `Error: ${error.message}. Please check if your API is running and try again.`;
+                errorMsg.classList.add('show');
+            } finally {
+                loading.classList.remove('show');
+                predictButton.disabled = false;
+            }
+        }
+
+        function displayResults(data) {
+            const resultsContent = document.getElementById('resultsContent');
+            const resultsSection = document.getElementById('resultsSection');
+            
+            let html = '';
+            
+            // Display summary information
+            if (data.status) {
+                html += '<div class="result-card summary-card">';
+                html += '<div class="result-label">📊 Summary</div>';
+                html += '<div class="summary-stats">';
+                html += `<span class="stat-item"><strong>Status:</strong> ${data.status}</span>`;
+                if (data.total_engines) {
+                    html += `<span class="stat-item"><strong>Total Engines:</strong> ${data.total_engines}</span>`;
+                }
+                html += '</div>';
+                html += '</div>';
+            }
+            
+            // Display individual predictions in a clean table format
+            if (data.predictions && Array.isArray(data.predictions)) {
+                html += '<div class="result-card predictions-card">';
+                html += '<div class="result-label">🔧 Individual Engine Predictions</div>';
+                html += '<div class="predictions-table">';
+                html += '<div class="table-header">';
+                html += '<div class="header-cell">Engine ID</div>';
+                html += '<div class="header-cell">Predicted RUL (cycles)</div>';
+                html += '<div class="header-cell">Status</div>';
+                html += '</div>';
+                
+                data.predictions.forEach((prediction, index) => {
+                    const rul = prediction.predicted_rul;
+                    let status = '🟢 Good';
+                    let statusClass = 'status-good';
+                    
+                    if (rul < 50) {
+                        status = '🔴 Critical';
+                        statusClass = 'status-critical';
+                    } else if (rul < 100) {
+                        status = '🟡 Warning';
+                        statusClass = 'status-warning';
+                    }
+                    
+                    html += '<div class="table-row">';
+                    html += `<div class="table-cell"><strong>Engine ${prediction.engine_id}</strong></div>`;
+                    html += `<div class="table-cell rul-value">${rul} cycles</div>`;
+                    html += `<div class="table-cell ${statusClass}">${status}</div>`;
+                    html += '</div>';
+                });
+                
+                html += '</div>';
+                html += '</div>';
+                
+                // Add statistics
+                const rulValues = data.predictions.map(p => p.predicted_rul);
+                const avgRul = (rulValues.reduce((a, b) => a + b, 0) / rulValues.length).toFixed(1);
+                const minRul = Math.min(...rulValues);
+                const maxRul = Math.max(...rulValues);
+                
+                html += '<div class="result-card stats-card">';
+                html += '<div class="result-label">📈 Statistics</div>';
+                html += '<div class="stats-grid">';
+                html += `<div class="stat-box"><div class="stat-value">${avgRul}</div><div class="stat-name">Average RUL</div></div>`;
+                html += `<div class="stat-box"><div class="stat-value">${minRul}</div><div class="stat-name">Minimum RUL</div></div>`;
+                html += `<div class="stat-box"><div class="stat-value">${maxRul}</div><div class="stat-name">Maximum RUL</div></div>`;
+                html += '</div>';
+                html += '</div>';
+            }
+            
+            resultsContent.innerHTML = html;
+            resultsSection.classList.add('show');
+        }
+
+        // Check API status every 30 seconds
+        setInterval(checkAPIStatus, 30000);
+    </script>
+</body>
+</html>

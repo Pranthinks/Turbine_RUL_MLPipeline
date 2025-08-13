@@ -1,10 +1,14 @@
+# Add CORS support at the top
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import numpy as np
 import uuid
 import os
 import json
 import sys
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, FileResponse
 from datetime import datetime
 
 # Add current directory to Python path
@@ -57,6 +61,22 @@ class ModelPrediction(BaseModelPrediction):
 
 app = FastAPI(title="Turbine RUL Prediction API")
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with specific origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# IMPORTANT: Define API routes BEFORE mounting static files
+
+@app.get("/health")
+async def health_check():
+    """Simple health check for UI status indicator"""
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
 @app.post("/predict")
 async def predict_rul(file: UploadFile = File(...)):
     """Predict RUL for uploaded turbine test data"""
@@ -108,6 +128,12 @@ async def predict_rul(file: UploadFile = File(...)):
     except Exception as e:
         cleanup_files(user_id)
         raise HTTPException(status_code=400, detail=str(e))
+
+# Simple test endpoint for debugging
+@app.get("/test")
+async def test_endpoint():
+    """Simple test endpoint"""
+    return {"message": "API is working!", "status": "ok"}
 
 def process_data(raw_file, user_id):
     """Convert raw user data to EXACT PostgreSQL format like Airflow DAG"""
@@ -184,7 +210,34 @@ def cleanup_files(user_id):
         except:
             pass
 
+# UI route comes AFTER API routes
+@app.get("/", response_class=HTMLResponse)
+async def get_ui():
+    """Serve the main UI page"""
+    html_path = os.path.join("static", "index.html")
+    if os.path.exists(html_path):
+        with open(html_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read(), status_code=200)
+    else:
+        return HTMLResponse(
+            content="""
+            <h1>MLOps UI Not Found</h1>
+            <p>Please place the UI HTML file in static/index.html</p>
+            <p>Your API is working! Test endpoints:</p>
+            <ul>
+                <li><a href="/docs">API Documentation</a></li>
+                <li><a href="/health">Health Check</a></li>
+                <li><a href="/test">Test Endpoint</a></li>
+            </ul>
+            """,
+            status_code=404
+        )
+
+# Mount static files LAST
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+
 if __name__ == "__main__":
     import uvicorn
     print("🚀 Starting Turbine RUL Prediction API on http://localhost:8000")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)

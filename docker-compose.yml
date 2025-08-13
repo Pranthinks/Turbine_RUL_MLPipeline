@@ -21,6 +21,25 @@ services:
       - pushgateway
     networks:
       - turbine-network
+  
+  turbine-api:
+    build: .
+    container_name: turbine-rul-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - turbine_artifacts:/app/artifacts:ro
+      - turbine_logs:/app/logs
+      - turbine_temp:/app/temp
+      - ./static:/app/static:ro
+    environment:
+      - PYTHONPATH=/app
+    command: ["python", "fast_api.py"]
+    networks:
+      - turbine-network
+    restart: unless-stopped
+    depends_on:
+      - turbine-rul
 
   # Prometheus - Metrics storage and querying
   prometheus:
@@ -81,6 +100,7 @@ volumes:
   turbine_artifacts:
   turbine_logs:
   turbine_config:
+  turbine_temp:
   
   # New monitoring volumes
   prometheus_data:

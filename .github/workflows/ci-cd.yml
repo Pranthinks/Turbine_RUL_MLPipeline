@@ -40,6 +40,11 @@ jobs:
         echo "Testing pipeline can start..."
         docker run --rm turbine_rul_mlpipeline-turbine-rul:latest python -c "import main; print('✅ Pipeline loads OK')"
     
+    - name: Test FastAPI imports
+      run: |
+        echo "Testing FastAPI can start..."
+        docker run --rm turbine_rul_mlpipeline-turbine-rul:latest python -c "import fast_api; print('✅ FastAPI loads OK')"
+    
     - name: Run basic smoke test
       run: |
         echo "Running smoke test..."
@@ -71,9 +76,21 @@ jobs:
         docker tag turbine_rul_mlpipeline-turbine-rul:latest turbine_rul_mlpipeline-turbine-rul:backup-${{ github.sha }}
         echo "Backup created: turbine_rul_mlpipeline-turbine-rul:backup-${{ github.sha }}"
     
+    - name: Start FastAPI service
+      run: |
+        echo "Starting FastAPI service..."
+        docker-compose up -d turbine-api
+        timeout 30 >nul 2>&1 || ver >nul
+
+    - name: Verify API service
+      run: |
+        echo "✅ FastAPI available at: http://localhost:8000"
+        docker-compose ps
+    
     - name: Container ready for Airflow
       run: |
         echo "✅ Container updated and ready for manual Airflow execution"
+        echo "✅ FastAPI service running at: http://localhost:8000"
         echo "Image: turbine_rul_mlpipeline-turbine-rul:latest"
         echo "SHA: ${{ github.sha }}"
         echo "You can now run your Airflow DAG manually"
@@ -92,6 +109,7 @@ jobs:
         echo "Build SHA: ${{ github.sha }}" >> deployment_summary.txt
         echo "Timestamp: %date% %time%" >> deployment_summary.txt
         echo "Image: turbine_rul_mlpipeline-turbine-rul:latest" >> deployment_summary.txt
+        echo "FastAPI URL: http://localhost:8000" >> deployment_summary.txt
         echo "Status: Ready for manual Airflow execution" >> deployment_summary.txt
         type deployment_summary.txt
     
@@ -110,9 +128,10 @@ jobs:
     - name: Notify success
       if: needs.deploy-and-integrate.result == 'success'
       run: |
-        echo "🚀 MLOps Pipeline Updated Successfully!"
+        echo "🚀 MLOps Pipeline with FastAPI Updated Successfully!"
         echo "✅ Image: turbine_rul_mlpipeline-turbine-rul:latest"
         echo "✅ SHA: ${{ github.sha }}"
+        echo "✅ FastAPI: http://localhost:8000"
         echo "✅ Ready for manual Airflow execution"
     
     - name: Notify failure
