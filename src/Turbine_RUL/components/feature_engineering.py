@@ -304,7 +304,7 @@ class FeatureEngineering:
     @monitor_pipeline_stage('feature_engineering')
     def initiate_feature_engineering(self, batch_size=50):
         """Main feature engineering process - EXACT SAME logic with memory optimizations"""
-        print("Starting Feature Engineering...")
+        print("Starting Feature Engineering...") #ghjkl
         
         # Load preprocessed data from previous stage
         train_data = pd.read_csv(self.config.train_preprocessed_path)
