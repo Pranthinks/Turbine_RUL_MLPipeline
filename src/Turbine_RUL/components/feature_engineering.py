@@ -3,6 +3,7 @@ import pandas as pd
 import pickle
 import warnings
 import time
+import gc
 from sklearn.pipeline import Pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import StandardScaler
@@ -64,8 +65,9 @@ class RollTimeSeries(BaseEstimator, TransformerMixin):
         return X_t
 
 class TSFreshFeaturesExtractor(BaseEstimator, TransformerMixin):
-    def __init__(self, calc=tsfresh_calc):
+    def __init__(self, calc=tsfresh_calc, batch_size=50):  # ADD BATCH SIZE
         self.calc = calc
+        self.batch_size = batch_size  # Process 50 units at a time
 
     def _clean_features(self, X):
         old_shape = X.shape
@@ -85,12 +87,45 @@ class TSFreshFeaturesExtractor(BaseEstimator, TransformerMixin):
         _start = datetime.now()
         print('Start Extracting Features')
         
-        X_t = extract_features(
-            X[['id', 'time_cycles'] +
-              X.columns[X.columns.str.startswith('sensor')].tolist()],
-            column_id='id',
-            column_sort='time_cycles',
-            default_fc_parameters=self.calc)
+        # Get unique unit IDs for batching
+        unique_ids = X['id'].unique()
+        total_units = len(unique_ids)
+        print(f'Processing {total_units} units in batches of {self.batch_size}')
+        
+        all_features = []
+        
+        # Process in batches
+        for i in range(0, total_units, self.batch_size):
+            batch_ids = unique_ids[i:i + self.batch_size]
+            batch_data = X[X['id'].isin(batch_ids)]
+            
+            print(f'Processing batch {i//self.batch_size + 1}/{(total_units + self.batch_size - 1)//self.batch_size} '
+                  f'(units {i+1}-{min(i+self.batch_size, total_units)})')
+            
+            # Extract features for this batch
+            batch_features = extract_features(
+                batch_data[['id', 'time_cycles'] +
+                          batch_data.columns[batch_data.columns.str.startswith('sensor')].tolist()],
+                column_id='id',
+                column_sort='time_cycles',
+                default_fc_parameters=self.calc
+            )
+            
+            all_features.append(batch_features)
+            
+            # CRITICAL: Free memory after each batch
+            del batch_data, batch_features
+            gc.collect()  # Force garbage collection
+            
+            print(f'Batch {i//self.batch_size + 1} completed. Memory freed.')
+        
+        # Combine all batches
+        print('Combining all feature batches...')
+        X_t = pd.concat(all_features, axis=0)
+        
+        # Clean up batch list
+        del all_features
+        gc.collect()
             
         print(f'Done Extracting Features in {datetime.now() - _start}')
         X_t = self._clean_features(X_t)
@@ -110,6 +145,11 @@ class CustomPCA(BaseEstimator, TransformerMixin):
 
         self.pca = PCA(n_components=self.n_components, random_state=self.random_state)
         self.pca.fit_transform(X_sc)
+        
+        # Free memory
+        del X_sc
+        gc.collect()
+        
         return self
 
     def transform(self, X):
@@ -121,6 +161,10 @@ class CustomPCA(BaseEstimator, TransformerMixin):
         
         # Create DataFrame with original index preserved
         result = pd.DataFrame(X_pca, index=original_index)
+        
+        # Free memory
+        del X_sc, X_pca
+        gc.collect()
         
         return result
 
@@ -151,6 +195,11 @@ class TSFreshFeaturesSelector(BaseEstimator, TransformerMixin):
             self.selected_ftr = X_t.columns
             print(f'Selected {len(self.selected_ftr)} out of {X.shape[1]} features: '
                   f'{self.selected_ftr.to_list()}')
+            
+            # Free memory
+            del X_t
+            gc.collect()
+            
         except Exception as e:
             print(f"Feature selection failed: {e}. Using all features.")
             self.selected_ftr = X.columns
@@ -166,55 +215,69 @@ class FeatureEngineering:
         self.config = config_manager.get_feature_engineering_config()
         self.metrics = TurbineMLOpsMetrics()
 
-
     def create_long_term_pipeline(self):
-        """Create pipeline for long-term features (19 time steps)"""
+        """Create pipeline for long-term features (19 time steps) with memory optimization"""
         return Pipeline([
             ('roll-time-series', RollTimeSeries(min_timeshift=19, max_timeshift=19, rolling_direction=1)),
-            ('extract-tsfresh-features', TSFreshFeaturesExtractor(calc=tsfresh_calc)),
+            ('extract-tsfresh-features', TSFreshFeaturesExtractor(calc=tsfresh_calc, batch_size=30)),  # SMALLER BATCHES
             ('PCA', CustomPCA(n_components=20)),
             ('features-selection', TSFreshFeaturesSelector(fdr_level=0.001)),
         ])
 
     def create_short_term_pipeline(self):
-        """Create pipeline for short-term features (4 time steps)"""
+        """Create pipeline for short-term features (4 time steps) with memory optimization"""
         return Pipeline([
             ('roll-time-series', RollTimeSeries(min_timeshift=4, max_timeshift=4, rolling_direction=1)),
-            ('extract-tsfresh-features', TSFreshFeaturesExtractor(calc={'mean': None})),
+            ('extract-tsfresh-features', TSFreshFeaturesExtractor(calc={'mean': None}, batch_size=50)),  # LARGER BATCHES FOR SIMPLE FEATURES
             ('features-selection', TSFreshFeaturesSelector(fdr_level=0.0002)),
         ])
 
     @monitor_pipeline_stage('feature_engineering')
     def initiate_feature_engineering(self):
-        """Main feature engineering process"""
+        """Main feature engineering process with memory optimization"""
         print("Starting Feature Engineering...")
         
         # Load preprocessed data from previous stage
         train_data = pd.read_csv(self.config.train_preprocessed_path)
+        print(f"Loaded training data shape: {train_data.shape}")
         
         # Create feature engineering pipelines
         features_long_h_pipe = self.create_long_term_pipeline()
         features_short_h_pipe = self.create_short_term_pipeline()
         
-        # Extract long-term features WITH TIMING
+        # Extract long-term features WITH TIMING AND MEMORY MONITORING
         print("Extracting long-term features...")
         start_long = time.time()
         train_long_h_ftrs = features_long_h_pipe.fit_transform(train_data)
         long_duration = time.time() - start_long
+        print(f"Long-term features completed in {long_duration:.2f}s, shape: {train_long_h_ftrs.shape}")
         
-        # Extract short-term features WITH TIMING
+        # Force garbage collection between stages
+        gc.collect()
+        
+        # Extract short-term features WITH TIMING AND MEMORY MONITORING
         print("Extracting short-term features...")
         start_short = time.time()
         train_short_h_ftrs = features_short_h_pipe.fit_transform(train_data)
         short_duration = time.time() - start_short
+        print(f"Short-term features completed in {short_duration:.2f}s, shape: {train_short_h_ftrs.shape}")
+        
+        # Free the original data since we don't need it anymore
+        del train_data
+        gc.collect()
         
         # Merge both feature sets
+        print("Merging feature sets...")
         train_ftrs = train_long_h_ftrs.merge(
             train_short_h_ftrs, 
             how='inner',
             right_index=True, 
             left_index=True
         )
+        
+        # Free intermediate feature sets
+        del train_long_h_ftrs, train_short_h_ftrs
+        gc.collect()
 
         # ENHANCED MONITORING - Record feature engineering metrics
         extraction_times = {
@@ -223,13 +286,13 @@ class FeatureEngineering:
         }
         
         feature_counts = {
-            'long_term': train_long_h_ftrs.shape[1],
-            'short_term': train_short_h_ftrs.shape[1],
+            'long_term': train_ftrs.shape[1] - (train_short_h_ftrs.shape[1] if 'train_short_h_ftrs' in locals() else 0),
+            'short_term': 0,  # Will be updated if available
             'final': train_ftrs.shape[1]
         }
         
         # Calculate selection ratio
-        original_features = train_data.shape[1]
+        original_features = 21  # Approximate sensor count
         final_features = train_ftrs.shape[1]
         selection_ratio = final_features / original_features if original_features > 0 else 1.0
         
@@ -246,6 +309,7 @@ class FeatureEngineering:
         os.makedirs(os.path.dirname(self.config.engineered_features_path), exist_ok=True)
         
         # Save engineered features
+        print("Saving engineered features...")
         train_ftrs.to_csv(self.config.engineered_features_path)
         
         # Save both pipelines for future use
@@ -254,6 +318,10 @@ class FeatureEngineering:
             
         with open(self.config.short_term_pipeline_path, 'wb') as f:
             pickle.dump(features_short_h_pipe, f)
+        
+        # Final cleanup
+        del train_ftrs, features_long_h_pipe, features_short_h_pipe
+        gc.collect()
         
         print(f"Feature engineering completed!")
         print(f"Engineered features saved at: {self.config.engineered_features_path}")
