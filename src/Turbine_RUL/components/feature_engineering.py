@@ -302,7 +302,7 @@ class FeatureEngineering:
         ])
 
     @monitor_pipeline_stage('feature_engineering')
-    def initiate_feature_engineering(self, batch_size=300):
+    def initiate_feature_engineering(self, batch_size=50):
         """Main feature engineering process - EXACT SAME logic with memory optimizations"""
         print("Starting Feature Engineering...")
         
