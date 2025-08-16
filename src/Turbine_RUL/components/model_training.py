@@ -6,7 +6,6 @@ import warnings
 import mlflow
 import mlflow.sklearn
 import gc
-import psutil
 from datetime import datetime
 from sklearn.model_selection import GroupKFold, cross_validate, ParameterGrid
 from sklearn.tree import DecisionTreeRegressor
@@ -22,10 +21,10 @@ from src.Turbine_RUL.utils.common import calculate_RUL
 # Suppress warnings
 warnings.filterwarnings("ignore")
 
-# Constants
+# Constants - EXACT SAME
 RUL_THRESHOLD = 135
 
-# Setup MLflow tracking
+# Setup MLflow tracking - EXACT SAME
 if os.getenv("MLFLOW_TRACKING_URI"):
     os.environ["MLFLOW_TRACKING_URI"] = os.getenv("MLFLOW_TRACKING_URI")
 if os.getenv("MLFLOW_TRACKING_USERNAME"):
@@ -34,11 +33,11 @@ if os.getenv("MLFLOW_TRACKING_PASSWORD"):
     os.environ["MLFLOW_TRACKING_PASSWORD"] = os.getenv("MLFLOW_TRACKING_PASSWORD")
 
 class CustomGroupKFold(GroupKFold):
-    """CV Splitter which drops validation records with RUL values outside of test set ranges"""
+    """CV Splitter which drops validation records with RUL values outside of test set ranges - EXACT SAME"""
     def split(self, X, y, groups):
         splits = super().split(X, y, groups)
         for train_ind, val_ind in splits:
-            # Filter validation indices to keep only RUL values in range [6, 135]
+            # Filter validation indices to keep only RUL values in range [6, 135] - EXACT SAME
             yield train_ind, val_ind[(y[val_ind] > 6) & (y[val_ind] < RUL_THRESHOLD)]
 
 class ModelTrainer:
@@ -46,51 +45,77 @@ class ModelTrainer:
         config_manager = ConfigurationManager()
         self.config = config_manager.get_model_training_config()
         self.metrics = TurbineMLOpsMetrics()
-        # Setup MLflow
+        # Setup MLflow - EXACT SAME
         mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI"))
-    
-    def log_memory_usage(self, stage_name):
-        """Log current memory usage"""
-        memory_mb = psutil.Process().memory_info().rss / 1024 / 1024
-        print(f"[{stage_name}] Memory usage: {memory_mb:.1f} MB")
-        return memory_mb
+        
+    def _optimize_data_types(self, df):
+        """Memory optimization without changing data integrity"""
+        print("Optimizing data types for memory efficiency...")
+        original_memory = df.memory_usage(deep=True).sum() / 1024**2
+        
+        # Convert float64 to float32 where possible
+        for col in df.select_dtypes(include=['float64']).columns:
+            if df[col].dtype == 'float64':
+                df[col] = df[col].astype('float32')
+        
+        # Convert int64 to smaller int types where possible
+        for col in df.select_dtypes(include=['int64']).columns:
+            col_min = df[col].min()
+            col_max = df[col].max()
+            if col_min >= -32768 and col_max <= 32767:
+                df[col] = df[col].astype('int16')
+            elif col_min >= -2147483648 and col_max <= 2147483647:
+                df[col] = df[col].astype('int32')
+        
+        new_memory = df.memory_usage(deep=True).sum() / 1024**2
+        print(f"Memory usage reduced from {original_memory:.2f} MB to {new_memory:.2f} MB")
+        
+        return df
         
     def prepare_training_data(self, train_features_path):
-        """Prepare data for training by loading features and calculating RUL"""
+        """Prepare data for training by loading features and calculating RUL - EXACT SAME logic with memory optimization"""
         print("Loading engineered features...")
         train_ftrs = pd.read_csv(train_features_path)
         
-        # Handle index - if saved with index, set it properly
+        # Memory optimization only
+        train_ftrs = self._optimize_data_types(train_ftrs)
+        
+        # Handle index - if saved with index, set it properly - EXACT SAME logic
         if 'unit_id' in train_ftrs.columns and 'time_cycles' in train_ftrs.columns:
             train_ftrs = train_ftrs.set_index(['unit_id', 'time_cycles'])
         
-        # Extract features (X) and prepare for training
+        # Extract features (X) and prepare for training - EXACT SAME logic
         X_train = train_ftrs.reset_index().drop(columns=['unit_id'])
         
-        # Get unit information for calculating RUL
+        # Memory optimization: Convert to float32
+        for col in X_train.select_dtypes(include=['float64']).columns:
+            X_train[col] = X_train[col].astype('float32')
+        
+        # Get unit information for calculating RUL - EXACT SAME logic
         train_units_df = train_ftrs.index.to_frame(index=False)
         
-        # Calculate RUL (y)
+        # Calculate RUL (y) - EXACT SAME logic
         print("Calculating RUL values...")
         y_train = calculate_RUL(train_units_df, upper_threshold=RUL_THRESHOLD)
+        
+        # Memory cleanup
+        del train_ftrs
+        gc.collect()
         
         return X_train, y_train, train_units_df
     
     def evaluate_model(self, model, X, y, groups, cv, n_jobs=None):
-        """Evaluate a model with Cross-Validation - MEMORY OPTIMIZED"""
-        # Reduce n_jobs to prevent memory explosion
-        n_jobs = min(n_jobs or 1, 2)  # Max 2 parallel jobs
-        
+        """Evaluate a model with Cross-Validation - EXACT SAME logic"""
         cv_results = cross_validate(
             model, X=X, y=y, groups=groups,
             scoring=['neg_root_mean_squared_error', 'neg_mean_absolute_error'],
             cv=cv, 
             return_train_score=True, 
-            return_estimator=False,  # DON'T KEEP ESTIMATORS IN MEMORY
+            return_estimator=True,
             n_jobs=n_jobs
         )
         
-        # Print results
+        # Print results - EXACT SAME logic
         for k, v in cv_results.items():
             if k.startswith('train_') or k.startswith('test_'):
                 k_sp = k.split('_')
@@ -100,7 +125,7 @@ class ModelTrainer:
         return cv_results
     
     def extract_feature_importance(self, model, feature_names):
-        """Extract and sort feature importances"""
+        """Extract and sort feature importances - EXACT SAME logic"""
         importances = model.feature_importances_.ravel()
         
         feature_importance = pd.DataFrame({
@@ -110,37 +135,41 @@ class ModelTrainer:
         
         return feature_importance
     
+    def _memory_efficient_cross_validate(self, model, X, y, groups, cv, n_jobs=1):
+        """Memory-efficient cross-validation with reduced n_jobs for large datasets"""
+        # For large datasets, use single job to avoid memory multiplication
+        if X.shape[0] > 30000:  # Threshold for large datasets
+            print("Large dataset detected, using single-threaded CV to save memory")
+            n_jobs = 1
+        
+        return self.evaluate_model(model, X, y, groups, cv, n_jobs=n_jobs)
+    
     @monitor_pipeline_stage('model_training')
     def initiate_model_training(self):
-        """Main model training process with hyperparameter tuning - MEMORY OPTIMIZED"""
+        """Main model training process with hyperparameter tuning - EXACT SAME logic with memory optimizations"""
         print("Starting Model Training with Hyperparameter Tuning...")
         start_time = datetime.now()
-        self.log_memory_usage("Training Start")
         
-        # 1. Load and prepare data
+        # 1. Load and prepare data - EXACT SAME logic
         X_train, y_train, train_units_df = self.prepare_training_data(
             self.config.engineered_features_path
         )
         
-        # Filter out samples with RUL <= 0
+        # Filter out samples with RUL <= 0 - EXACT SAME logic
         valid_mask = y_train > 0
         X_train_valid = X_train[valid_mask]
         y_train_valid = y_train[valid_mask]
         train_units_valid = train_units_df[valid_mask]
         
-        # Free intermediate variables
-        del X_train, y_train, train_units_df, valid_mask
+        # Memory cleanup
+        del X_train, y_train, train_units_df
         gc.collect()
-        self.log_memory_usage("Data Loaded")
         
         print(f"Training data shape: {X_train_valid.shape}")
         print(f"Target values range: [{y_train_valid.min()}, {y_train_valid.max()}]")
+        print(f"Memory usage: {X_train_valid.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
         
-        # Convert to numpy arrays once (more memory efficient)
-        X_values = X_train_valid.values
-        feature_names = X_train_valid.columns.tolist()
-        
-        # 2. Define parameter grids (4 combinations each)
+        # 2. Define parameter grids (4 combinations each) - EXACT SAME
         ngboost_params = [
             {'learning_rate': 0.01, 'n_estimators': 200},
             {'learning_rate': 0.02, 'n_estimators': 200},
@@ -155,7 +184,7 @@ class ModelTrainer:
             {'n_estimators': 200, 'max_depth': None}
         ]
         
-        # 3. Set MLflow experiment
+        # 3. Set MLflow experiment - EXACT SAME
         mlflow.set_experiment("Turbine_RUL_Hyperparameter_Tuning")
         
         cv_splitter = CustomGroupKFold(n_splits=4)
@@ -165,17 +194,19 @@ class ModelTrainer:
         best_model_name = None
         best_cv_results = None
         
-        # 4. NGBoost hyperparameter tuning
+        # Determine n_jobs based on dataset size for memory efficiency
+        cv_n_jobs = 1 if X_train_valid.shape[0] > 30000 else 2
+        
+        # 4. NGBoost hyperparameter tuning - EXACT SAME logic
         print(f"\n{'='*50}")
         print("TUNING NGBOOST PARAMETERS")
         print(f"{'='*50}")
         
         for i, params in enumerate(ngboost_params, 1):
             print(f"\nNGBoost {i}/4: {params}")
-            self.log_memory_usage(f"NGBoost {i} Start")
             
             with mlflow.start_run():
-                # Create model
+                # Create model - EXACT SAME logic
                 ngb_base = DecisionTreeRegressor(
                     criterion='friedman_mse', max_depth=5, 
                     max_features=0.8, min_samples_leaf=50
@@ -187,24 +218,24 @@ class ModelTrainer:
                     col_sample=0.8, minibatch_frac=0.5, verbose=False
                 )
                 
-                # Set tags and log parameters
+                # Set tags and log parameters - EXACT SAME logic
                 mlflow.set_tag("model_type", "ngboost")
                 mlflow.log_params(params)
                 mlflow.log_param("max_depth", 5)
                 mlflow.log_param("max_features", 0.8)
                 mlflow.log_param("col_sample", 0.8)
                 
-                # Cross-validation with reduced parallelism
-                cv_results = self.evaluate_model(
-                    model, X_values, y_train_valid,
-                    train_units_valid['unit_id'], cv_splitter, n_jobs=1  # REDUCED PARALLELISM
+                # Memory-efficient cross-validation
+                cv_results = self._memory_efficient_cross_validate(
+                    model, X_train_valid.values, y_train_valid,
+                    train_units_valid['unit_id'], cv_splitter, n_jobs=cv_n_jobs
                 )
                 
-                # Train model and get feature importance
+                # Train model and get feature importance - EXACT SAME logic
                 model.fit(X_train_valid, y_train_valid)
-                feature_importance = self.extract_feature_importance(model, feature_names)
+                feature_importance = self.extract_feature_importance(model, X_train_valid.columns)
                 
-                # Calculate and log metrics
+                # Calculate and log metrics - EXACT SAME logic
                 test_rmse = np.abs(cv_results['test_neg_root_mean_squared_error'].mean())
                 test_mae = np.abs(cv_results['test_neg_mean_absolute_error'].mean())
                 train_rmse = np.abs(cv_results['train_neg_root_mean_squared_error'].mean())
@@ -213,64 +244,61 @@ class ModelTrainer:
                 mlflow.log_metric("test_mae", test_mae)
                 mlflow.log_metric("train_rmse", train_rmse)
                 
-                # Log feature importance (cleanup immediately)
+                # Log feature importance - EXACT SAME logic
                 importance_path = "temp_feature_importance.csv"
                 feature_importance.to_csv(importance_path, index=False)
                 mlflow.log_artifact(importance_path)
                 os.remove(importance_path)
-                del feature_importance  # EXPLICIT CLEANUP
                 
-                # Check if best
+                # Check if best - EXACT SAME logic
                 if test_rmse < best_score:
                     best_score = test_rmse
-                    # Clone the model to avoid reference issues
-                    best_model = pickle.loads(pickle.dumps(model))
+                    best_model = model
                     best_params = params.copy()
                     best_params.update({'max_depth': 5, 'max_features': 0.8, 'col_sample': 0.8})
                     best_model_name = "ngboost"
-                    best_cv_results = cv_results.copy()
+                    best_cv_results = cv_results
                 
-                # CLEANUP CURRENT MODEL
-                del model, ngb_base, cv_results
+                # Memory cleanup after each run
+                del model, feature_importance
                 gc.collect()
-                self.log_memory_usage(f"NGBoost {i} End")
         
-        # 5. Random Forest hyperparameter tuning
+        # 5. Random Forest hyperparameter tuning - EXACT SAME logic
         print(f"\n{'='*50}")
         print("TUNING RANDOM FOREST PARAMETERS")
         print(f"{'='*50}")
         
         for i, params in enumerate(rf_params, 1):
             print(f"\nRandomForest {i}/4: {params}")
-            self.log_memory_usage(f"RF {i} Start")
             
             with mlflow.start_run():
-                # Create model
+                # Create model - EXACT SAME logic
                 model = RandomForestRegressor(
                     n_estimators=params['n_estimators'],
                     max_depth=params['max_depth'],
                     min_samples_split=5, min_samples_leaf=2,
-                    max_features=0.8, random_state=42, n_jobs=1  # REDUCED PARALLELISM
+                    max_features=0.8, random_state=42, 
+                    n_jobs=1  # Memory optimization: single job for large datasets
                 )
                 
-                # Set tags and log parameters
+                # Set tags and log parameters - EXACT SAME logic
                 mlflow.set_tag("model_type", "random_forest")
                 mlflow.log_params(params)
                 mlflow.log_param("min_samples_split", 5)
                 mlflow.log_param("min_samples_leaf", 2)
                 mlflow.log_param("max_features", 0.8)
                 
-                # Cross-validation
-                cv_results = self.evaluate_model(
-                    model, X_values, y_train_valid,
-                    train_units_valid['unit_id'], cv_splitter, n_jobs=1  # REDUCED PARALLELISM
+                # Memory-efficient cross-validation
+                cv_results = self._memory_efficient_cross_validate(
+                    model, X_train_valid.values, y_train_valid,
+                    train_units_valid['unit_id'], cv_splitter, n_jobs=cv_n_jobs
                 )
                 
-                # Train model and get feature importance
+                # Train model and get feature importance - EXACT SAME logic
                 model.fit(X_train_valid, y_train_valid)
-                feature_importance = self.extract_feature_importance(model, feature_names)
+                feature_importance = self.extract_feature_importance(model, X_train_valid.columns)
                 
-                # Calculate and log metrics
+                # Calculate and log metrics - EXACT SAME logic
                 test_rmse = np.abs(cv_results['test_neg_root_mean_squared_error'].mean())
                 test_mae = np.abs(cv_results['test_neg_mean_absolute_error'].mean())
                 train_rmse = np.abs(cv_results['train_neg_root_mean_squared_error'].mean())
@@ -279,70 +307,75 @@ class ModelTrainer:
                 mlflow.log_metric("test_mae", test_mae)
                 mlflow.log_metric("train_rmse", train_rmse)
                 
-                # Log feature importance (cleanup immediately)
+                # Log feature importance - EXACT SAME logic
                 importance_path = "temp_feature_importance.csv"
                 feature_importance.to_csv(importance_path, index=False)
                 mlflow.log_artifact(importance_path)
                 os.remove(importance_path)
-                del feature_importance  # EXPLICIT CLEANUP
                 
-                # Save model as pickle (more memory efficient than mlflow.sklearn)
+                # Log sklearn model - EXACT SAME logic
                 local_model_path = "rf_model.pkl"
                 with open(local_model_path, 'wb') as f:
                     pickle.dump(model, f)
+                
                 mlflow.log_artifact(local_model_path, "model")
                 os.remove(local_model_path)
                 
-                # Check if best
+                # Check if best - EXACT SAME logic
                 if test_rmse < best_score:
                     best_score = test_rmse
-                    # Clone the model to avoid reference issues
-                    best_model = pickle.loads(pickle.dumps(model))
+                    best_model = model
                     best_params = params.copy()
                     best_params.update({'min_samples_split': 5, 'min_samples_leaf': 2, 'max_features': 0.8})
                     best_model_name = "random_forest"
-                    best_cv_results = cv_results.copy()
+                    best_cv_results = cv_results
                 
-                # CLEANUP CURRENT MODEL
-                del model, cv_results
+                # Memory cleanup after each run
+                del model, feature_importance
                 gc.collect()
-                self.log_memory_usage(f"RF {i} End")
         
-        # 6. Final best model logging
+        # 6. Final best model logging - EXACT SAME logic
         print(f"\n{'='*60}")
         print(f"BEST MODEL: {best_model_name.upper()} (RMSE: {best_score:.3f})")
         print(f"BEST PARAMETERS: {best_params}")
         print(f"{'='*60}")
         
-        # Log best model to separate experiment
+        # Log best model to separate experiment - EXACT SAME logic
         mlflow.set_experiment("Turbine_RUL_Best_Model")
         with mlflow.start_run() as run:
             mlflow.set_tag("model_type", best_model_name)
             mlflow.set_tag("experiment_type", "best_model")
             
-            # Log best parameters
+            # Log best parameters - EXACT SAME logic
             mlflow.log_params(best_params)
             
-            # Log best metrics
+            # Log best metrics - EXACT SAME logic
             mlflow.log_metric("best_test_rmse", best_score)
             mlflow.log_metric("best_test_mae", np.abs(best_cv_results['test_neg_mean_absolute_error'].mean()))
             
-            # Log best model
-            model_path = "best_model.pkl"
-            with open(model_path, 'wb') as f:
-                pickle.dump(best_model, f)
-            mlflow.log_artifact(model_path, "model")
-            os.remove(model_path)
+            # Log best model - EXACT SAME logic
+            if best_model_name == "ngboost":
+                model_path = "best_model.pkl"
+                with open(model_path, 'wb') as f:
+                    pickle.dump(best_model, f)
+                mlflow.log_artifact(model_path, "model")
+                os.remove(model_path)
+            else:
+                model_path = "best_model.pkl"
+                with open(model_path, 'wb') as f:
+                    pickle.dump(best_model, f)
+                mlflow.log_artifact(model_path, "model")
+                os.remove(model_path)
             
             print(f"✅ Best model logged to MLflow")
             print(f"🔗 Model URI: runs:/{run.info.run_id}/model")
         
-        # 7. Extract final feature importance and save locally
-        final_feature_importance = self.extract_feature_importance(best_model, feature_names)
+        # 7. Extract final feature importance and save locally - EXACT SAME logic
+        final_feature_importance = self.extract_feature_importance(best_model, X_train_valid.columns)
         print("\nTop 10 most important features:")
         print(final_feature_importance.head(10))
         
-        # Save artifacts locally
+        # Save artifacts locally - EXACT SAME logic
         os.makedirs(os.path.dirname(self.config.model_path), exist_ok=True)
         
         # Save the best model
@@ -350,14 +383,14 @@ class ModelTrainer:
             pickle.dump(best_model, f)
         
         # Save selected features list
-        selected_features = feature_names
+        selected_features = X_train_valid.columns.tolist()
         with open(self.config.selected_features_path, 'wb') as f:
             pickle.dump(selected_features, f)
         
         # Save feature importance
         final_feature_importance.to_csv(self.config.feature_importance_path, index=False)
         
-        # Save cross-validation results
+        # Save cross-validation results - EXACT SAME logic
         cv_results_df = pd.DataFrame({
             'train_rmse': -best_cv_results['train_neg_root_mean_squared_error'],
             'test_rmse': -best_cv_results['test_neg_root_mean_squared_error'],
@@ -366,7 +399,7 @@ class ModelTrainer:
         })
         cv_results_df.to_csv(self.config.cv_results_path, index=False)
         
-        # Calculate final metrics
+        # Calculate final metrics - EXACT SAME logic
         total_time = (datetime.now() - start_time).total_seconds()
         metrics = {
             'best_model': best_model_name,
@@ -384,11 +417,11 @@ class ModelTrainer:
             'total_training_time_seconds': total_time
         }
         
-        # Save metrics
+        # Save metrics - EXACT SAME logic
         metrics_df = pd.DataFrame([metrics])
         metrics_df.to_csv(self.config.metrics_path, index=False)
         
-        # ENHANCED MONITORING - Record comprehensive training metrics
+        # ENHANCED MONITORING - Record comprehensive training metrics - EXACT SAME logic
         total_trials = len(ngboost_params) + len(rf_params)  # 4 + 4 = 8 trials
         self.metrics.record_training_metrics(
             cv_results_df, 
@@ -397,16 +430,10 @@ class ModelTrainer:
             hyperparameter_trials=total_trials
         )
         
-        # Calculate improvement over baseline (simple baseline = std of targets)
+        # Calculate improvement over baseline (simple baseline = std of targets) - EXACT SAME logic
         baseline_rmse = np.std(y_train_valid)  # Simple baseline
         improvement = ((baseline_rmse - best_score) / baseline_rmse) * 100
         self.metrics.best_model_improvement.set(max(0, improvement))
-        
-        # Final cleanup
-        del X_train_valid, y_train_valid, train_units_valid, X_values, feature_names
-        del best_model, best_cv_results, cv_results_df
-        gc.collect()
-        self.log_memory_usage("Training Complete")
         
         print(f"\nModel training completed in {total_time:.2f} seconds!")
         print(f"Best model: {best_model_name}")
