@@ -50,10 +50,10 @@ model_prediction:
   evaluation_plots_path: artifacts/model_prediction/evaluation_plots.png
 
 
-
+#Updated version
 
 database:
-  host: 172.24.57.132
+  host: 192.168.1.41
   port: 5432
   database: postgres
   username: postgres
