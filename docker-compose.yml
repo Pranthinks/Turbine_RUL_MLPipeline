@@ -26,7 +26,7 @@ services:
     build: .
     container_name: turbine-rul-api
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - turbine_artifacts:/app/artifacts:ro
       - turbine_logs:/app/logs
